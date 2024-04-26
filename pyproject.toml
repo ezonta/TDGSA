@@ -1,0 +1,11 @@
+[project]
+name = "TDGSA"
+version = "2024.01.24"
+description = "A package for time-dependent sensitivity analysis, especially for battery models."
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["TDGSA"]

@@ -8,44 +8,57 @@ import chaospy as cp
 import multiprocessing
 from joblib import Parallel, delayed
 from sklearn import linear_model
-from utils import distribution, simulator
+import utils
 import xarray as xr
+from typing import Callable, Optional, Union, Mapping
+from numpy.typing import ArrayLike
+from tqdm.autonotebook import tqdm
 
 # TODO: Use typing for all methods
 # TODO: Implement second and third order calculation for KL
-# TODO: Implement pointwise-in-time GPR surrogate models
-# TODO: Implement MC method
 # TODO: Implement different sampling (QMC, Quadrature)  in simulator and 
 # automatically use quadrature or regression in PCE method based on chosen sampling
 # TODO: Drop simulator.data in favor of simulator.output and simulator.params (and possibly drop all NaN rows)
 # TODO: put "method" in compute_sobol_indices as an argument
+# TODO: Implement pointwise-in-time GPR surrogate models
+# TODO: Implement MC method
 
-class time_dependent_sensitivity:
+class time_dependent_sensitivity_analysis:
     """A class that performs time-dependent global sensitivity analysis."""
-
-    def __init__(self, simulator, method="KL", parallel=True, **kwargs):
+    # TODO: sort class members
+    simulator: utils.simulator
+    distribution: utils.distribution
+    param_names: list[str]
+    
+    params: Optional[pd.DataFrame]
+    outputs: Optional[pd.DataFrame]
+    
+    num_samples: Optional[int]
+    
+    PCE_quad_weights: Optional[ArrayLike]
+    
+    def __init__(self, simulator: utils.simulator, distribution: utils.distribution, **kwargs):
 
         self.simulator = simulator
-        self.parallel = parallel
+        self.distribution = distribution
+        
+        self.params = None
+        self.outputs = None
 
-        if method == "KL" or method == "PCE" or method == "MC":
-            self.method = method
-        else:
-            raise ValueError(
-                f"Unknown method: {method}. Please choose from Karhunen-Loeve ('KL'), Polynomial Chaos Expansion ('PCE'), or Monte Carlo ('MC').\n"
-            )
-
-        self.param_names = self.simulator.dist.param_names
+        self.param_names = self.distribution.param_names
         self.num_samples = self.simulator.num_samples
-        self.num_params = self.simulator.dist.dim
+        self.num_params = self.distribution.dim
         self.timesteps_solver = self.simulator.time
 
         self.num_timesteps_quadrature = kwargs.get("num_timesteps_quadrature", 100)
         # quadrature or regression
         self.PCE_option = kwargs.get("PCE_option", "regression")
+        # TODO: change these and get them from sample_params_and_run_simulator
         self.PCE_quad_weights = kwargs.get("PCE_quad_weights", None)
+        # TODO: use as kwargs in compute_sobol_indices instead
         self.PCE_order = kwargs.get("PCE_order", 4)
         self.KL_truncation_level = kwargs.get("KL_truncation_level", 8)
+        # TODO: remove together with MC method
         # random, halton, latin_hypercube, sobol, etc.
         self.MC_option = kwargs.get("MC_option", "random")
 
@@ -55,8 +68,52 @@ class time_dependent_sensitivity:
         self._coeff_pointwise = None
         self._polynomial_pointwise = None
         
+    def sample_params_and_run_simulator(self, num_samples: int, sampling_method: str="random", **kwargs) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """A method that generates parameter samples and runs the simulator.
+        --> List options for kwargs for quasirandom_method (Halton, Sobol, Latin Hypercube) and quadrature_method (Clenshaw-Curtis, etc.) """
+        
+        ## sampling of parameters
+        print("Sampling parameters ...\n")
+        
+        if sampling_method == "random":
+            samples = self.distribution.sample(num_samples=num_samples, rule="random")
+        
+        elif sampling_method == "quasirandom":
+            quasirandom_rule = kwargs.get("quasirandom_method", "halton")
+            if quasirandom_rule != "halton" and quasirandom_rule != "sobol" and quasirandom_rule != "latin_hypercube":
+                raise ValueError(
+                    f"Unknown quasirandom method: {quasirandom_rule}. Please choose from 'halton', 'sobol', or 'latin_hypercube'.\n"
+                )
+            samples = self.distribution.sample(num_samples=num_samples, rule=quasirandom_rule)
+        
+        elif sampling_method == "quadrature":
+            quadrature_rule = kwargs.get("quadrature_method", "clenshaw_curtis")
+            quadrature_order = kwargs.get("quadrature_order", 4)
+            if quadrature_rule != "clenshaw_curtis" and quadrature_rule != "gaussian" and quadrature_rule != "legendre":
+                raise ValueError(
+                    f"Unknown quadrature method: {quadrature_rule}. Please choose from 'clenshaw_curtis', 'gaussian', or 'legendre'.\n"
+                )
+            samples, weights = cp.generate_quadrature(quadrature_order, self.distribution.dist, rule=quadrature_rule)
+            
+        else:
+            raise ValueError(
+                f"Unknown sampling method: {sampling_method}. Please choose from 'random', 'quasirandom', or 'quadrature'.\n"
+            )
+        
+        ## run simulator and get outputs
+        print("Running simulator ...\n")
+        
+        outputs = self.simulator.run(samples)
+        
+        params = pd.DataFrame(samples, columns=self.param_names)
+        outputs = pd.DataFrame(outputs, columns=self.timesteps_solver)
+        
+        self.params = params
+        self.outputs = outputs
+        
+        return params, outputs
 
-    def compute_sobol_indices(self):
+    def compute_sobol_indices(self, method):
         """A method that runs the time-dependent sensitivity analysis and returns the generalized sobol indices."""
         if self.simulator.data is None:
             raise ValueError("No data available. Please run the simulator first.\n")
@@ -64,14 +121,16 @@ class time_dependent_sensitivity:
             params = self.simulator.data[0]
             output = self.simulator.data[1]
 
-        if self.method == "KL":
+        if method == "KL":
             self._KL_analysis(params, output)
-        elif self.method == "PCE":
+        elif method == "PCE":
             self._PCE_analysis(params, output)
-        elif self.method == "MC":
+        elif method == "MC":
             self._MC_analysis(params, output)
         else:
-            raise ValueError("Method not recognized.")
+            raise ValueError(
+                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL'), Polynomial Chaos Expansion ('PCE'), or Monte Carlo ('MC').\n"
+            )
 
         return self.sobol_indices
 
@@ -161,43 +220,23 @@ class time_dependent_sensitivity:
         num_cores = multiprocessing.cpu_count()
 
         if PCE_option == "regression":
-            if self.parallel:
-                surrogate_models = Parallel(n_jobs=num_cores)(
-                    delayed(cp.fit_regression)(
-                        expansion,
-                        params.T,
-                        KL_modes[:, i],
-                        retall=1,
-                        model=linear_model.LinearRegression(fit_intercept=False),
-                    )
-                    for i in range(N_kl)
+            surrogate_models = Parallel(n_jobs=num_cores)(
+                delayed(cp.fit_regression)(
+                    expansion,
+                    params.T,
+                    KL_modes[:, i],
+                    retall=1,
+                    model=linear_model.LinearRegression(fit_intercept=False),
                 )
-            else: 
-                surrogate_models = [
-                    cp.fit_regression(
-                        expansion,
-                        params.T,
-                        KL_modes[:, i],
-                        retall=1,
-                        model=linear_model.LinearRegression(fit_intercept=False),
-                    )
-                    for i in range(N_kl)
-                ]
+                for i in range(N_kl)
+            )
         elif PCE_option == "quadrature":
-            if self.parallel:
-                surrogate_models = Parallel(n_jobs=num_cores)(
-                    delayed(cp.fit_quadrature)(
-                        expansion, params.T, self.PCE_quad_weights, KL_modes[:, i], retall=1
-                    )
-                    for i in range(N_kl)
+            surrogate_models = Parallel(n_jobs=num_cores)(
+                delayed(cp.fit_quadrature)(
+                    expansion, params.T, self.PCE_quad_weights, KL_modes[:, i], retall=1
                 )
-            else:
-                surrogate_models = [
-                    cp.fit_quadrature(
-                        expansion, params.T, self.PCE_quad_weights, KL_modes[:, i], retall=1
-                    )
-                    for i in range(N_kl)
-                ]
+                for i in range(N_kl)
+            )
         else:
             raise ValueError(
                 "Unknown PCE option. Please choose from regression or quadrature.\n"
@@ -372,9 +411,7 @@ class time_dependent_sensitivity:
 
     def _MC_analysis(self, params, output):
         """A method that performs TD-GSA using Monte Carlo estimators."""
-        raise NotImplementedError("MC method not yet fully implemented.")
-        
-
+        raise NotImplementedError("MC method not yet implemented.")
     
     def compute_second_order_sobol_indices(self):
         """A method that computes second order Sobol' indices."""
@@ -503,17 +540,28 @@ class time_dependent_sensitivity:
         result = [cp.call(self._polynomial_pointwise[m],param) for m in range(self.num_timesteps_quadrature)]
         return np.array(result)
     
-    def GPR_surrogate(self, param):
-        if self._gpr_pointwise_in_time is None:
+    def plot(self, plot_option: str, return_fig: bool=False) -> Optional[plt.Figure]:
+        """A method that plots the results of the time-dependent sensitivity analysis."""
+        if plot_option == "sobol_indices":
+            fig = self._plot_sobol_indices()
+        elif plot_option == "time_dependent_sobol_indices":
+            fig = self._plot_time_dependent_sobol_indices()
+        elif plot_option == "simulator_output":
+            fig = self._plot_simulator_output()
+        elif plot_option == "covariance_matrix":
+            fig = self._plot_covariance_matrix()
+        elif plot_option == "eigenvalue_spectrum":
+            fig = self._plot_eigenvalue_spectrum()
+        else:
             raise ValueError(
-                "No GPR surrogate models available. Please run the MC method first.\n"
+                f"Unknown plot option: {plot_option}. Please choose from 'sobol_indices', 'time_dependent_sobol_indices', 'covariance_matrix', or 'eigenvalue_spectrum'.\n"
             )
-        normalized_param = self._normalize_params(param)
-        result = [self._gpr_pointwise_in_time[m].predict(normalized_param) for m in range(self.num_timesteps_quadrature)]
-        result_unnormalized = self._unnormalize_output(np.array(result))
-        return result_unnormalized
+        if return_fig:
+            return fig
+        else:
+            plt.show()
 
-    def plot_sobol_indices(self):
+    def _plot_sobol_indices(self):
         """A method that plots the generalized Sobol indices."""
         if self.sobol_indices is None:
             raise ValueError(
@@ -528,7 +576,7 @@ class time_dependent_sensitivity:
             ax.set_ylabel("Generalized Sobol' index")
             ax.legend()
 
-    def plot_time_dependent_sobol_indices(self):
+    def _plot_time_dependent_sobol_indices(self):
         """A method that plots the time-evolution of the generalized Sobol indices."""
         timesteps_quadrature = np.linspace(
             self.timesteps_solver[0],
@@ -561,8 +609,11 @@ class time_dependent_sensitivity:
             ax[1].legend()
             plt.tight_layout()
             plt.show()
+            
+    def _plot_simulator_output(self):
+        pass
 
-    def plot_covariance_matrix(self):
+    def _plot_covariance_matrix(self):
         """A method that plots the covariance matrix."""
         if self._covariance_matrix is None:
             raise ValueError(
@@ -573,7 +624,7 @@ class time_dependent_sensitivity:
             sns.heatmap(self._covariance_matrix)
             plt.show()
 
-    def plot_eigenvalue_spectrum(self):
+    def _plot_eigenvalue_spectrum(self):
         """A method that plots the eigenvalue spectrum to check spectral decay."""
         if self._sorted_eigenvalues_normed is None:
             raise ValueError(

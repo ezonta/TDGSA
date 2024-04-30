@@ -7,18 +7,27 @@ import pandas as pd
 import chaospy as cp
 import multiprocessing
 from joblib import Parallel, delayed
-
+from typing import Callable, Optional, Union, Mapping
+from numpy.typing import ArrayLike
+from tqdm.autonotebook import tqdm
 
 class distribution:
-    """A class that acts as a wrapper for a chaospy distribution"""
-
-    def __init__(self, dist_dict):
-        """Constructor method
-
-        Args:
-            dist_dict (dict): Dict that defines the distribution of each parameter (e.g. {'alpha':['uniform', [0, 1]], 'beta':['normal': [0, 1]]}),
-            where the numbers define upper and lower bounds for the uniform distribution and mean and standard deviation for the normal distribution.
-        """
+    """docstring
+    example of dist_dict:
+    dist_dict = {
+        "param1": ("normal", [0, 1]),
+        "param2": ("uniform", [0, 1]),
+        "param3": ("lognormal", [0, 1]),
+        "param4": ("loguniform", [0, 1]),
+    }
+    """
+    dist: cp.J
+    dim: int
+    param_names: list[str]
+    param_ranges: list[list[float]]
+    num_samples: int
+    
+    def __init__(self, dist_dict: Mapping[str, tuple[str, list[float]]]) -> None:
         dist_list = []
         param_names = []
         param_ranges = []
@@ -38,76 +47,53 @@ class distribution:
                 dist_list.append(cp.LogNormal(*dist_params))
             else:
                 raise ValueError(
-                    f"Unknown distribution type: {dist_type}. Please choose from normal, uniform, lognormal, or loguniform.\n"
+                    f"Unknown distribution type: {dist_type}. Please choose from 'normal', 'uniform', 'lognormal', or 'loguniform'.\n"
                 )
 
         self.dist = cp.J(*dist_list)
         self.dim = len(dist_list)
         self.param_names = param_names
         self.param_ranges = param_ranges
-        self.num_samples = None
 
-    def sample(self, num_samples=1):
-        """A method that samples from the distribution"""
-        samples = np.array(self.dist.sample(num_samples)).T
+    def sample(self, num_samples: int, rule: str) -> ArrayLike:
+        """docstring
+        """
+        samples = np.array(self.dist.sample(num_samples, rule=rule)).T
         return samples
 
 
 class simulator:
-    """A class that acts as a wrapper for the model of interest.
-
-    Args:
-        model (callable): The model for sensitivity analysis, which should return the time series of interest.
-        dist (distribution): The distribution from which parameters are sampled.
-        data (array, optional): An array of parameters and time-dependent output, if pre-existing.
+    """docstring
     """
+    model: Callable[[ArrayLike], ArrayLike]
+    dist: distribution
+    time: ArrayLike
+    data: Optional[ArrayLike]
+    num_samples: Optional[int]
+    params: Optional[pd.DataFrame]
+    output: Optional[pd.DataFrame]
 
-    def __init__(self, model, dist, timesteps_solver, data=None, parallel=True):
+    def __init__(self, model: Callable[[ArrayLike], ArrayLike], timesteps_solver: ArrayLike, data: Optional[ArrayLike]=None) -> None:
         self.model = model
-        self.dist = dist
         self.time = timesteps_solver
-        self.parallel = parallel
         
-        self.num_samples = None
-        self.data = data  # params and output as np.array
-        self.params = None  # params as pd.dataframe (columns are param names)
-        self.output = None  # output as pd.dataframe (columns are time steps)
-
-    def generate_params(self, num_samples=1):
-        """A method that samples from the given distribution.
-
-        Args:
-            size (int, optional): The number of samples to generate. Defaults to 1.
-
-        Returns:
-            array: An array of parameters.
-        """
-        self.num_samples = num_samples
-        params = self.dist.sample(num_samples)
-        self.params = pd.DataFrame(params, columns=self.dist.param_names)
-        return params
-
-    def generate_output(self, params):
-        """A method that calls the model with a set of parameters.
-
-        Args:
-            params (array): An array of parameters.
-
-        Returns:
-            output: An array of time-dependent output.
+        #TODO: move all of this to TDGSA class
+        self.num_samples = 0
+        self.data = data  
+        self.params = None  
+        self.output = None
+        
+    def run(self, params) -> ArrayLike:
+        """docstring
         """
         num_cores = multiprocessing.cpu_count()
-        if self.parallel:
-            output = Parallel(n_jobs=num_cores)(
-                delayed(self.model)(param) for param in params
-            )
-        else:
-            output = [self.model(param) for param in params]
-        output = np.array(output).reshape(params.shape[0], -1)
-        self.output = pd.DataFrame(output, columns=self.time)
-        self.data = [params, output]
-        return output
-
+        outputs = Parallel(n_jobs=num_cores)(
+            delayed(self.model)(param) for param in tqdm(params)
+        )
+        outputs = np.array(outputs).reshape(params.shape[0], -1)
+        return outputs
+    
+    # TODO: move to TDGSA class
     def plot_output(self):
         """A method that plots the generated output of the simulator"""
         if self.output is None:

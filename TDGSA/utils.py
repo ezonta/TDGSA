@@ -85,7 +85,7 @@ class simulator:
         self.model = model
         self.time = timesteps_solver
 
-    def run(self, params) -> NDArray:
+    def run(self, params: NDArray) -> NDArray:
         """docstring"""
         num_cores = multiprocessing.cpu_count()
         outputs = Parallel(n_jobs=num_cores)(

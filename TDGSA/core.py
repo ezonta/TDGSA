@@ -948,20 +948,26 @@ class time_dependent_sensitivity_analysis:
         plt.legend()
         plt.show()
 
-    # TODO
     def _plot_sampled_params(self) -> None:
-        def plot_histograms(param, name):
-            plt.figure()
-            plt.hist(param, bins=20)
-            plt.xlabel(name)
-            plt.ylabel("Frequency")
-            plt.show()
-        def plot_log_histograms(param, name):
-            plt.figure()
-            plt.hist(np.log(param), bins=20)
-            plt.xlabel(name)
-            plt.ylabel("Frequency")
-            plt.show()
+        
+        def plot_hist(ax, data, param_name, num_bins=20):
+            sns.histplot(data, bins=num_bins, ax=ax)
+            ax.set_xlabel(param_name)
+
+        def plot_log_hist(ax, data, param_name, num_bins=20):
+            counts, bins, _ = ax.hist(data, bins=num_bins)
+            logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
+            ax.cla()
+            sns.histplot(data, bins=logbins, ax=ax, edgecolor="k", linewidth=0.5)
+            ax.set_xscale('log')
+            ax.set_xlabel(param_name)
+            
+        fig, axes = plt.subplots(self.num_params, 1, figsize=(6, 4 * self.num_params))
+        for i, param_name in enumerate(self.param_names):
+            if self.distribution.dist_dict[param_name][0] == "loguniform" or self.distribution.dist_dict[param_name][0] == "lognormal":
+                plot_log_hist(axes[i], self.params[param_name], param_name)
+            else:
+                plot_hist(axes[i], self.params[param_name], param_name)
 
     def _plot_covariance_matrix(self) -> None:
         """A method that plots the covariance matrix."""

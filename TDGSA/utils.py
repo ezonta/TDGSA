@@ -11,6 +11,7 @@ from typing import Callable, Optional, Union, Dict
 from numpy.typing import NDArray
 from tqdm.autonotebook import tqdm
 
+
 class distribution:
     """docstring
     example of dist_dict:
@@ -21,6 +22,7 @@ class distribution:
         "param4": ("loguniform", [0, 1]),
     }
     """
+
     dist: cp.J
     dim: int
     param_names: list[str]
@@ -61,7 +63,8 @@ class distribution:
         """docstring"""
         samples = np.array(self.dist.sample(num_samples, rule=rule)).T
         return samples
-    
+
+
 class simulator:
     """docstring"""
 

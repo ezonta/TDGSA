@@ -42,12 +42,12 @@ class time_dependent_sensitivity_analysis:
     td_sobol_indices: Dict[str, pd.DataFrame]
     higher_order_sobol_indices: Dict[str, pd.DataFrame]
     td_higher_order_sobol_indices: Dict[str, pd.DataFrame]
-    
+
     _num_timesteps_quadrature: Optional[int]
 
     _PCE_option: Optional[str]
     _PCE_quad_weights: Optional[NDArray]
-    
+
     _KL_truncation_level: Optional[int]
     _covariance_matrix: Optional[NDArray]
     _sorted_eigenvalues: Optional[NDArray]
@@ -78,17 +78,17 @@ class time_dependent_sensitivity_analysis:
         self.num_samples = None
         self.num_params = self.distribution.dim
         self.timesteps_solver = self.simulator.time
-        
+
         self.sobol_indices = {}
         self.td_sobol_indices = {}
         self.higher_order_sobol_indices = {}
         self.td_higher_order_sobol_indices = {}
-        
+
         self._num_timesteps_quadrature = None
 
         self._PCE_option = None
         self._PCE_quad_weights = None
-        
+
         self._KL_truncation_level = None
         self._covariance_matrix = None
         self._sorted_eigenvalues = None
@@ -190,13 +190,15 @@ class time_dependent_sensitivity_analysis:
             raise ValueError(
                 "No data available. Please run sample_params_and_run_simulator() first.\n"
             )
-            
+
         # TODO: read out kwargs that are currently in constructor method
 
         if method == "KL":
             self._KL_analysis(self.params.to_numpy(), self.outputs.to_numpy(), **kwargs)
         elif method == "PCE":
-            self._PCE_analysis(self.params.to_numpy(), self.outputs.to_numpy(), **kwargs)
+            self._PCE_analysis(
+                self.params.to_numpy(), self.outputs.to_numpy(), **kwargs
+            )
         elif method == "MC":
             self._MC_analysis()
         else:
@@ -206,7 +208,9 @@ class time_dependent_sensitivity_analysis:
 
         return self.sobol_indices[method]
 
-    def _KL_analysis(self, params: NDArray, output: NDArray, **kwargs: Union[int, str]) -> None:
+    def _KL_analysis(
+        self, params: NDArray, output: NDArray, **kwargs: Union[int, str]
+    ) -> None:
         """A method that performs TD-GSA using a Karhunen-Loève expansion."""
         # Center the output and interpolate to quadrature nodes
         mean = np.mean(output, axis=0)
@@ -291,6 +295,8 @@ class time_dependent_sensitivity_analysis:
         expansion, norms = cp.generate_expansion(
             PCE_order, joint_dist, normed=True, graded=False, retall=True
         )
+        
+        print("Fitting surrogate models ...\n")
 
         num_cores = multiprocessing.cpu_count()
         if PCE_option == "regression":
@@ -302,7 +308,7 @@ class time_dependent_sensitivity_analysis:
                     retall=1,
                     model=linear_model.LinearRegression(fit_intercept=False),
                 )
-                for i in range(N_kl)
+                for i in tqdm(range(N_kl))
             )
         elif PCE_option == "quadrature":
             if self._PCE_quad_weights is None:
@@ -317,7 +323,7 @@ class time_dependent_sensitivity_analysis:
                     KL_modes[:, i],
                     retall=1,
                 )
-                for i in range(N_kl)
+                for i in tqdm(range(N_kl))
             )
 
         surrogate_model_coeffs = [surrogate_models[i][1] for i in range(N_kl)]
@@ -376,7 +382,9 @@ class time_dependent_sensitivity_analysis:
         )
         self.sobol_indices["KL"] = sobol_indices
 
-    def _PCE_analysis(self, params: NDArray, output: NDArray, **kwargs: Union[int, str]) -> None:
+    def _PCE_analysis(
+        self, params: NDArray, output: NDArray, **kwargs: Union[int, str]
+    ) -> None:
         """A method that performs TD-GSA using Polynomial Chaos Expansion surrogate models."""
         # Construct pointwise-in-time PCEs
         timesteps_solver = self.timesteps_solver
@@ -395,8 +403,10 @@ class time_dependent_sensitivity_analysis:
         expansion, norms = cp.generate_expansion(
             PCE_order, joint_dist, normed=True, graded=False, retall=True
         )
+        
+        print("Fitting surrogate models ...\n")
+        
         num_cores = multiprocessing.cpu_count()
-
         if PCE_option == "regression":
             surrogate_models_pointwise = Parallel(n_jobs=num_cores)(
                 delayed(cp.fit_regression)(
@@ -406,7 +416,7 @@ class time_dependent_sensitivity_analysis:
                     retall=1,
                     model=linear_model.LinearRegression(fit_intercept=False),
                 )
-                for m in range(len(timesteps_quadrature))
+                for m in tqdm(range(len(timesteps_quadrature)))
             )
         elif PCE_option == "quadrature":
             surrogate_models_pointwise = Parallel(n_jobs=num_cores)(
@@ -417,7 +427,7 @@ class time_dependent_sensitivity_analysis:
                     outputs_quadrature[:, m],
                     retall=1,
                 )
-                for m in range(len(timesteps_quadrature))
+                for m in tqdm(range(len(timesteps_quadrature)))
             )
 
         polynomial_pointwise_dict = surrogate_models_pointwise[0][0].todict()
@@ -521,7 +531,9 @@ class time_dependent_sensitivity_analysis:
         raise NotImplementedError("MC method not yet implemented.")
 
     # TODO: make possible to compute with KL as well
-    def compute_second_order_sobol_indices(self, method: str) -> tuple[pd.DataFrame, list[str]]:
+    def compute_second_order_sobol_indices(
+        self, method: str
+    ) -> tuple[pd.DataFrame, list[str]]:
         """A method that computes second order Sobol' indices."""
         if self._PCE_coeffs is {}:
             raise ValueError(
@@ -554,15 +566,17 @@ class time_dependent_sensitivity_analysis:
         masks_second = np.array(masks_second)
 
         # Compute variances for each parameter at each time step
-        
+
         coeffs = self._PCE_coeffs[method]
-        
+
         if method == "PCE":
 
             variance_over_time_second = np.zeros(
                 (len(timesteps_quadrature), len(param_combinations)), dtype=np.double
             )
-            total_variance_over_time = np.zeros(len(timesteps_quadrature), dtype=np.double)
+            total_variance_over_time = np.zeros(
+                len(timesteps_quadrature), dtype=np.double
+            )
 
             for m in range(len(timesteps_quadrature)):
 
@@ -593,13 +607,19 @@ class time_dependent_sensitivity_analysis:
                         weights[0] = 0.5 * h
                         weights[-1] = 0.5 * h
 
-                        denum = np.dot(np.asfarray(total_variance_over_time[:m]), weights)
+                        denum = np.dot(
+                            np.asfarray(total_variance_over_time[:m]), weights
+                        )
                         td_sobol_indices_second[m, i] = (
-                            np.dot(np.asfarray(variance_over_time_second[:m, i]), weights)
+                            np.dot(
+                                np.asfarray(variance_over_time_second[:m, i]), weights
+                            )
                             / denum
                         )
             sobol_indices_second = pd.DataFrame(
-                td_sobol_indices_second[-1, :], columns=["second"], index=param_combinations
+                td_sobol_indices_second[-1, :],
+                columns=["second"],
+                index=param_combinations,
             )
             td_sobol_indices_second = pd.DataFrame(
                 td_sobol_indices_second,
@@ -609,11 +629,13 @@ class time_dependent_sensitivity_analysis:
             self.higher_order_sobol_indices["second_PCE"] = sobol_indices_second
             self.td_higher_order_sobol_indices["second_PCE"] = td_sobol_indices_second
             self._param_combinations_second_order = param_combinations
-            
+
         elif method == "KL":
-            
-            sum_coeff_per_param_combination = np.zeros((self._KL_truncation_level, len(param_combinations)))
-            
+
+            sum_coeff_per_param_combination = np.zeros(
+                (self._KL_truncation_level, len(param_combinations))
+            )
+
             for i in range(len(param_combinations)):
                 for j in range(self._KL_truncation_level):
                     sum_coeff_per_param_combination[j, i] = np.sum(
@@ -627,32 +649,31 @@ class time_dependent_sensitivity_analysis:
                 sobol_indices_second[i] = (
                     sum(sum_coeff_per_param_combination[:, i]) / sum_eigenvalues
                 )
-                
+
             sobol_indices_second = pd.DataFrame(
                 sobol_indices_second, columns=["second"], index=param_combinations
             )
             self.higher_order_sobol_indices["second_KL"] = sobol_indices_second
             self._param_combinations_second_order = param_combinations
-        
+
         else:
             raise ValueError(
                 f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PCE').\n"
             )
-        
+
         key = "second_" + method
-        return (
-            self.higher_order_sobol_indices[key],
-            param_combinations
-        )
-    
+        return (self.higher_order_sobol_indices[key], param_combinations)
+
     # TODO: same changes as in second order computation
-    def compute_third_order_sobol_indices(self, method: str) -> tuple[pd.DataFrame, list[str]]:
+    def compute_third_order_sobol_indices(
+        self, method: str
+    ) -> tuple[pd.DataFrame, list[str]]:
         """A method that computes third order Sobol' indices."""
         if self._PCE_coeffs is {}:
             raise ValueError(
                 "No polynomial coefficients available. Please run compute_sobol_indices() first.\n"
             )
-        
+
         timesteps_solver = self.timesteps_solver
         timesteps_quadrature = np.linspace(
             timesteps_solver[0], timesteps_solver[-1], self._num_timesteps_quadrature
@@ -687,13 +708,15 @@ class time_dependent_sensitivity_analysis:
         # Compute variances for each parameter at each time step
 
         coeffs = self._PCE_coeffs[method]
-        
+
         if method == "PCE":
 
             variance_over_time_third = np.zeros(
                 (len(timesteps_quadrature), len(param_combinations)), dtype=np.double
             )
-            total_variance_over_time = np.zeros(len(timesteps_quadrature), dtype=np.double)
+            total_variance_over_time = np.zeros(
+                len(timesteps_quadrature), dtype=np.double
+            )
 
             for m in range(len(timesteps_quadrature)):
 
@@ -724,13 +747,19 @@ class time_dependent_sensitivity_analysis:
                         weights[0] = 0.5 * h
                         weights[-1] = 0.5 * h
 
-                        denum = np.dot(np.asfarray(total_variance_over_time[:m]), weights)
+                        denum = np.dot(
+                            np.asfarray(total_variance_over_time[:m]), weights
+                        )
                         td_sobol_indices_third[m, i] = (
-                            np.dot(np.asfarray(variance_over_time_third[:m, i]), weights)
+                            np.dot(
+                                np.asfarray(variance_over_time_third[:m, i]), weights
+                            )
                             / denum
                         )
             sobol_indices_third = pd.DataFrame(
-                td_sobol_indices_third[-1, :], columns=["third"], index=param_combinations
+                td_sobol_indices_third[-1, :],
+                columns=["third"],
+                index=param_combinations,
             )
             td_sobol_indices_third = pd.DataFrame(
                 td_sobol_indices_third,
@@ -740,11 +769,13 @@ class time_dependent_sensitivity_analysis:
             self.higher_order_sobol_indices["third_PCE"] = sobol_indices_third
             self.td_higher_order_sobol_indices["third_PCE"] = td_sobol_indices_third
             self._param_combinations_third_order = param_combinations
-            
+
         elif method == "KL":
-            
-            sum_coeff_per_param_combination = np.zeros((self._KL_truncation_level, len(param_combinations)))
-            
+
+            sum_coeff_per_param_combination = np.zeros(
+                (self._KL_truncation_level, len(param_combinations))
+            )
+
             for i in range(len(param_combinations)):
                 for j in range(self._KL_truncation_level):
                     sum_coeff_per_param_combination[j, i] = np.sum(
@@ -758,23 +789,21 @@ class time_dependent_sensitivity_analysis:
                 sobol_indices_third[i] = (
                     sum(sum_coeff_per_param_combination[:, i]) / sum_eigenvalues
                 )
-                
+
             sobol_indices_third = pd.DataFrame(
                 sobol_indices_third, columns=["third"], index=param_combinations
             )
             self.higher_order_sobol_indices["third_KL"] = sobol_indices_third
             self._param_combinations_third_order = param_combinations
-        
+
         else:
             raise ValueError(
                 f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PCE').\n"
             )
-        
+
         key = "third_" + method
-        return (
-            self.higher_order_sobol_indices[key],
-            param_combinations
-        )
+        return (self.higher_order_sobol_indices[key], param_combinations)
+
     def evaluate_PCE_surrogate(self, param: NDArray) -> NDArray:
         if self._polynomial_pointwise is None:
             raise ValueError(
@@ -822,10 +851,10 @@ class time_dependent_sensitivity_analysis:
             raise ValueError(
                 "No Sobol' indices available. Please run compute_sobol_indices() first.\n"
             )
-        
+
         num_plots = len(self.sobol_indices)
         x = np.arange(self.num_params)
-        
+
         if num_plots == 1:
             fig, ax = plt.subplots()
             for method, sobol_indices in self.sobol_indices.items():
@@ -843,7 +872,7 @@ class time_dependent_sensitivity_analysis:
             fig, ax = plt.subplots(1, num_plots, sharey=True)
             for index, (method, sobol_indices) in enumerate(self.sobol_indices.items()):
                 ax[index].bar(
-                x - 0.055, sobol_indices["first"], label="first order", width=0.1
+                    x - 0.055, sobol_indices["first"], label="first order", width=0.1
                 )
                 ax[index].bar(
                     x + 0.055, sobol_indices["total"], label="total order", width=0.1
@@ -867,7 +896,7 @@ class time_dependent_sensitivity_analysis:
             raise ValueError(
                 "No time-dependent Sobol' indices available. Please run the PCE method first.\n"
             )
-        
+
         fig, ax = plt.subplots(2, 1, sharex=True)
         for i in range(self.num_params):
             ax[0].plot(
@@ -887,84 +916,120 @@ class time_dependent_sensitivity_analysis:
         ax[1].legend()
         plt.tight_layout()
         plt.show()
-        
+
     # TODO plot second and third order sobol indices (depending on which was already computed)
     def _plot_higher_order_sobol_indices(self) -> None:
-        plot_list = [key in self.higher_order_sobol_indices for key in ["second_KL", "second_PCE", "third_KL", "third_PCE"]]
+        plot_list = [
+            key in self.higher_order_sobol_indices
+            for key in ["second_KL", "second_PCE", "third_KL", "third_PCE"]
+        ]
         num_plots = sum(plot_list)
-        
+
         if num_plots == 0:
             raise ValueError(
                 "No higher order Sobol' indices available. Please run compute_second_order_sobol_indices() and/or compute_third_order_sobol_indices() first.\n"
-            )   
-        
+            )
+
         fig, ax = plt.subplots(2, 2, figsize=(12, 10))
-        x_second = np.arange(len(self._param_combinations_second_order)) if self._param_combinations_second_order is not None else None
-        x_third = np.arange(len(self._param_combinations_third_order)) if self._param_combinations_third_order is not None else None
+        x_second = (
+            np.arange(len(self._param_combinations_second_order))
+            if self._param_combinations_second_order is not None
+            else None
+        )
+        x_third = (
+            np.arange(len(self._param_combinations_third_order))
+            if self._param_combinations_third_order is not None
+            else None
+        )
         if "second_KL" in self.higher_order_sobol_indices:
-            ax[0,0].bar(x_second, self.higher_order_sobol_indices["second_KL"].to_numpy().reshape(-1), width=0.2)
-            ax[0,0].set_ylabel("Generalized second order Sobol' index")
-            ax[0,0].set_xticks(x_second, self._param_combinations_second_order)
-            ax[0,0].set_title("Second order KL")
+            ax[0, 0].bar(
+                x_second,
+                self.higher_order_sobol_indices["second_KL"].to_numpy().reshape(-1),
+                width=0.2,
+            )
+            ax[0, 0].set_ylabel("Generalized second order Sobol' index")
+            ax[0, 0].set_xticks(x_second, self._param_combinations_second_order)
+            ax[0, 0].set_title("Second order KL")
         else:
-            ax[0,0].remove()
+            ax[0, 0].remove()
         if "second_PCE" in self.higher_order_sobol_indices:
-            ax[0,1].bar(x_second, self.higher_order_sobol_indices["second_PCE"].to_numpy().reshape(-1), width=0.2)
-            ax[0,1].set_ylabel("Generalized second order Sobol' index")
-            ax[0,1].set_xticks(x_second, self._param_combinations_second_order)
-            ax[0,1].set_title("Second order PCE")
+            ax[0, 1].bar(
+                x_second,
+                self.higher_order_sobol_indices["second_PCE"].to_numpy().reshape(-1),
+                width=0.2,
+            )
+            ax[0, 1].set_ylabel("Generalized second order Sobol' index")
+            ax[0, 1].set_xticks(x_second, self._param_combinations_second_order)
+            ax[0, 1].set_title("Second order PCE")
         else:
-            ax[0,1].remove()
+            ax[0, 1].remove()
         if "third_KL" in self.higher_order_sobol_indices:
-            ax[1,0].bar(x_third, self.higher_order_sobol_indices["third_KL"].to_numpy().reshape(-1), width=0.2)
-            ax[1,0].set_ylabel("Generalized third order Sobol' index")
-            ax[1,0].set_xticks(x_third, self._param_combinations_third_order)
-            ax[1,0].set_title("Third order KL")
+            ax[1, 0].bar(
+                x_third,
+                self.higher_order_sobol_indices["third_KL"].to_numpy().reshape(-1),
+                width=0.2,
+            )
+            ax[1, 0].set_ylabel("Generalized third order Sobol' index")
+            ax[1, 0].set_xticks(x_third, self._param_combinations_third_order)
+            ax[1, 0].set_title("Third order KL")
         else:
-            ax[1,0].remove()
+            ax[1, 0].remove()
         if "third_PCE" in self.higher_order_sobol_indices:
-            ax[1,1].bar(x_third, self.higher_order_sobol_indices["third_PCE"].to_numpy().reshape(-1), width=0.2)
-            ax[1,1].set_ylabel("Generalized third order Sobol' index")
-            ax[1,1].set_xticks(x_third, self._param_combinations_third_order)
-            ax[1,1].set_title("Third order PCE")
+            ax[1, 1].bar(
+                x_third,
+                self.higher_order_sobol_indices["third_PCE"].to_numpy().reshape(-1),
+                width=0.2,
+            )
+            ax[1, 1].set_ylabel("Generalized third order Sobol' index")
+            ax[1, 1].set_xticks(x_third, self._param_combinations_third_order)
+            ax[1, 1].set_title("Third order PCE")
         else:
-            ax[1,1].remove()
+            ax[1, 1].remove()
         plt.tight_layout()
         plt.show()
-    
+
     def _plot_simulator_output(self) -> None:
         """A method that plots the mean and standard deviation of the simulator output."""
         if self.outputs is None:
             raise ValueError("No simulator outputs available.")
-        
+
         mean_output = self.outputs.mean(axis=0)
         std_output = self.outputs.std(axis=0)
-        
+
         plt.figure()
         plt.plot(self.timesteps_solver, mean_output, label="Mean")
-        plt.fill_between(self.timesteps_solver, mean_output - std_output, mean_output + std_output, alpha=0.3, label="Standard Deviation")
+        plt.fill_between(
+            self.timesteps_solver,
+            mean_output - std_output,
+            mean_output + std_output,
+            alpha=0.3,
+            label="Standard Deviation",
+        )
         plt.xlabel("Time")
         plt.ylabel("Simulator Output")
         plt.legend()
         plt.show()
 
     def _plot_sampled_params(self) -> None:
-        
+
         def plot_hist(ax, data, param_name, num_bins=20):
             sns.histplot(data, bins=num_bins, ax=ax)
             ax.set_xlabel(param_name)
 
         def plot_log_hist(ax, data, param_name, num_bins=20):
             counts, bins, _ = ax.hist(data, bins=num_bins)
-            logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
+            logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
             ax.cla()
             sns.histplot(data, bins=logbins, ax=ax, edgecolor="k", linewidth=0.5)
-            ax.set_xscale('log')
+            ax.set_xscale("log")
             ax.set_xlabel(param_name)
-            
+
         fig, axes = plt.subplots(self.num_params, 1, figsize=(6, 4 * self.num_params))
         for i, param_name in enumerate(self.param_names):
-            if self.distribution.dist_dict[param_name][0] == "loguniform" or self.distribution.dist_dict[param_name][0] == "lognormal":
+            if (
+                self.distribution.dist_dict[param_name][0] == "loguniform"
+                or self.distribution.dist_dict[param_name][0] == "lognormal"
+            ):
                 plot_log_hist(axes[i], self.params[param_name], param_name)
             else:
                 plot_hist(axes[i], self.params[param_name], param_name)

@@ -7,8 +7,8 @@ import pandas as pd
 import chaospy as cp
 import multiprocessing
 from joblib import Parallel, delayed
-from typing import Callable, Optional, Union, Mapping
-from numpy.typing import ArrayLike
+from typing import Callable, Optional, Union, Dict
+from numpy.typing import NDArray
 from tqdm.autonotebook import tqdm
 
 class distribution:
@@ -25,9 +25,10 @@ class distribution:
     dim: int
     param_names: list[str]
     param_ranges: list[list[float]]
-    num_samples: int
-    
-    def __init__(self, dist_dict: Mapping[str, tuple[str, list[float]]]) -> None:
+    dist_dict: Dict[str, tuple[str, list[float]]]
+    num_samples: Optional[int]
+
+    def __init__(self, dist_dict: Dict[str, tuple[str, list[float]]]) -> None:
         dist_list = []
         param_names = []
         param_ranges = []
@@ -54,64 +55,38 @@ class distribution:
         self.dim = len(dist_list)
         self.param_names = param_names
         self.param_ranges = param_ranges
+        self.dist_dict = dist_dict
 
-    def sample(self, num_samples: int, rule: str) -> ArrayLike:
-        """docstring
-        """
+    def sample(self, num_samples: int, rule: str) -> NDArray:
+        """docstring"""
         samples = np.array(self.dist.sample(num_samples, rule=rule)).T
         return samples
-
-
+    
 class simulator:
-    """docstring
-    """
-    model: Callable[[ArrayLike], ArrayLike]
+    """docstring"""
+
+    model: Callable[[NDArray], NDArray]
     dist: distribution
-    time: ArrayLike
-    data: Optional[ArrayLike]
+    time: NDArray
+    data: Optional[NDArray]
     num_samples: Optional[int]
     params: Optional[pd.DataFrame]
     output: Optional[pd.DataFrame]
 
-    def __init__(self, model: Callable[[ArrayLike], ArrayLike], timesteps_solver: ArrayLike, data: Optional[ArrayLike]=None) -> None:
+    def __init__(
+        self,
+        model: Callable[[NDArray], NDArray],
+        timesteps_solver: NDArray,
+        data: Optional[NDArray] = None,
+    ) -> None:
         self.model = model
         self.time = timesteps_solver
-        
-        #TODO: move all of this to TDGSA class
-        self.num_samples = 0
-        self.data = data  
-        self.params = None  
-        self.output = None
-        
-    def run(self, params) -> ArrayLike:
-        """docstring
-        """
+
+    def run(self, params) -> NDArray:
+        """docstring"""
         num_cores = multiprocessing.cpu_count()
         outputs = Parallel(n_jobs=num_cores)(
             delayed(self.model)(param) for param in tqdm(params)
         )
         outputs = np.array(outputs).reshape(params.shape[0], -1)
         return outputs
-    
-    # TODO: move to TDGSA class
-    def plot_output(self):
-        """A method that plots the generated output of the simulator"""
-        if self.output is None:
-            raise ValueError("No output available. Please run the simulator first.\n")
-        else:
-            fig, ax = plt.subplots(2, 1, sharex=True)
-            for i in range(self.num_samples):
-                ax[0].plot(self.time, self.output.iloc[i])
-            ax[0].set_ylabel("Output")
-
-            ax[1].plot(self.time, self.output.mean())
-            ax[1].fill_between(
-                self.time,
-                self.output.mean() - self.output.std(),
-                self.output.mean() + self.output.std(),
-                alpha=0.3,
-            )
-            ax[1].set_xlabel("Time")
-            ax[1].set_ylabel("Output")
-            plt.tight_layout()
-            plt.show()

@@ -9,7 +9,6 @@ import multiprocessing
 from joblib import Parallel, delayed
 from sklearn import linear_model
 import utils
-import xarray as xr
 from typing import Callable, Optional, Union, Dict
 from numpy.typing import NDArray
 from tqdm.autonotebook import tqdm
@@ -55,7 +54,7 @@ class time_dependent_sensitivity_analysis:
     _r_Nkl: Optional[NDArray]
 
     _polynomial_dict: Optional[Dict]
-    _PCE_coeffs: Dict[str, NDArray]
+    _PCE_coeffs: Dict[str, list[NDArray]]
     _polynomial_pointwise: Optional[list[cp.ndpoly]]
 
     _param_combinations_second_order: Optional[list[str]]
@@ -942,46 +941,46 @@ class time_dependent_sensitivity_analysis:
             else None
         )
         if "second_KL" in self.higher_order_sobol_indices:
-            ax[0, 0].bar(
+            ax[0, 0].barh(
                 x_second,
                 self.higher_order_sobol_indices["second_KL"].to_numpy().reshape(-1),
-                width=0.2,
+                height=0.1,
             )
-            ax[0, 0].set_ylabel("Generalized second order Sobol' index")
-            ax[0, 0].set_xticks(x_second, self._param_combinations_second_order)
+            ax[0, 0].set_xlabel("Generalized second order Sobol' index")
+            ax[0, 0].set_yticks(x_second, self._param_combinations_second_order)
             ax[0, 0].set_title("Second order KL")
         else:
             ax[0, 0].remove()
         if "second_PCE" in self.higher_order_sobol_indices:
-            ax[0, 1].bar(
+            ax[0, 1].barh(
                 x_second,
                 self.higher_order_sobol_indices["second_PCE"].to_numpy().reshape(-1),
-                width=0.2,
+                height=0.1,
             )
-            ax[0, 1].set_ylabel("Generalized second order Sobol' index")
-            ax[0, 1].set_xticks(x_second, self._param_combinations_second_order)
+            ax[0, 1].set_xlabel("Generalized second order Sobol' index")
+            ax[0, 1].set_yticks(x_second, self._param_combinations_second_order)
             ax[0, 1].set_title("Second order PCE")
         else:
             ax[0, 1].remove()
         if "third_KL" in self.higher_order_sobol_indices:
-            ax[1, 0].bar(
+            ax[1, 0].barh(
                 x_third,
                 self.higher_order_sobol_indices["third_KL"].to_numpy().reshape(-1),
-                width=0.2,
+                height=0.1,
             )
-            ax[1, 0].set_ylabel("Generalized third order Sobol' index")
-            ax[1, 0].set_xticks(x_third, self._param_combinations_third_order)
+            ax[1, 0].set_xlabel("Generalized third order Sobol' index")
+            ax[1, 0].set_yticks(x_third, self._param_combinations_third_order)
             ax[1, 0].set_title("Third order KL")
         else:
             ax[1, 0].remove()
         if "third_PCE" in self.higher_order_sobol_indices:
-            ax[1, 1].bar(
+            ax[1, 1].barh(
                 x_third,
                 self.higher_order_sobol_indices["third_PCE"].to_numpy().reshape(-1),
-                width=0.2,
+                height=0.1,
             )
-            ax[1, 1].set_ylabel("Generalized third order Sobol' index")
-            ax[1, 1].set_xticks(x_third, self._param_combinations_third_order)
+            ax[1, 1].set_xlabel("Generalized third order Sobol' index")
+            ax[1, 1].set_yticks(x_third, self._param_combinations_third_order)
             ax[1, 1].set_title("Third order PCE")
         else:
             ax[1, 1].remove()
@@ -1012,11 +1011,11 @@ class time_dependent_sensitivity_analysis:
 
     def _plot_sampled_params(self) -> None:
 
-        def plot_hist(ax, data, param_name, num_bins=20):
+        def plot_hist(ax, data, param_name, num_bins=50):
             sns.histplot(data, bins=num_bins, ax=ax)
             ax.set_xlabel(param_name)
 
-        def plot_log_hist(ax, data, param_name, num_bins=20):
+        def plot_log_hist(ax, data, param_name, num_bins=50):
             counts, bins, _ = ax.hist(data, bins=num_bins)
             logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
             ax.cla()

@@ -13,12 +13,9 @@ from typing import Callable, Optional, Union, Dict
 from numpy.typing import NDArray
 from tqdm.autonotebook import tqdm
 
-# TODO: Use typing for all methods
-# TODO: Implement second and third order calculation for KL
-# TODO: Implement different sampling (QMC, Quadrature)  in simulator and
-# automatically use quadrature or regression in PCE method based on chosen sampling
-# TODO: Drop simulator.data in favor of simulator.output and simulator.params (and possibly drop all NaN rows)
-# TODO: put "method" in compute_sobol_indices as an argument
+
+# TODO: Better docstrings
+# TODO: Make initialization of time_dependent_sensitivity_analysis possible with pre_existing data
 # TODO: Implement pointwise-in-time GPR surrogate models
 # TODO: Implement MC method
 
@@ -64,14 +61,19 @@ class time_dependent_sensitivity_analysis:
         self,
         simulator: utils.simulator,
         distribution: utils.distribution,
+        data: Optional[tuple[pd.DataFrame, pd.DataFrame]] = None,
         **kwargs: Union[int, str],
     ) -> None:
 
         self.simulator = simulator
         self.distribution = distribution
 
-        self.params = None
-        self.outputs = None
+        if data is not None:
+            self.params = data[0]
+            self.output = data[1]
+        else:
+            self.params = None
+            self.outputs = None
 
         self.param_names = self.distribution.param_names
         self.num_samples = None
@@ -112,7 +114,9 @@ class time_dependent_sensitivity_analysis:
         **kwargs: Union[int, str],
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """A method that generates parameter samples and runs the simulator.
+        
         Options:
+        
         sampling_method
             - 'random': random sampling
             - 'quasirandom': quasi-random sampling (quasirandom_rule: 'halton', 'sobol', 'latin_hypercube')
@@ -179,8 +183,10 @@ class time_dependent_sensitivity_analysis:
 
     def compute_sobol_indices(self, method: str, **kwargs) -> pd.DataFrame:
         """A method that runs the time-dependent sensitivity analysis and returns the generalized sobol indices.
+        
         Options:
             - method: 'KL', 'PCE'
+        
         kwargs:
             - num_timesteps_quadrature: number of quadrature nodes in time (default is 100)
             - KL_truncation_level: truncation level for the Karhunen-Loève expansion (default is 8)
@@ -193,7 +199,9 @@ class time_dependent_sensitivity_analysis:
         # TODO: read out kwargs that are currently in constructor method
 
         if method == "KL":
-            self._KL_analysis(self.params.to_numpy(), self.outputs.to_numpy(), **kwargs)
+            self._KL_analysis(
+                self.params.to_numpy(), self.outputs.to_numpy(), **kwargs
+            )
         elif method == "PCE":
             self._PCE_analysis(
                 self.params.to_numpy(), self.outputs.to_numpy(), **kwargs
@@ -290,6 +298,8 @@ class time_dependent_sensitivity_analysis:
         PCE_order = kwargs.get("PCE_order", 4)
         PCE_option = self._PCE_option
         joint_dist = self.distribution.dist
+        
+        print("Generating PCE expansion ...\n")
 
         expansion, norms = cp.generate_expansion(
             PCE_order, joint_dist, normed=True, graded=False, retall=True
@@ -398,6 +408,8 @@ class time_dependent_sensitivity_analysis:
         PCE_order = kwargs.get("PCE_order", 4)
         PCE_option = self._PCE_option
         joint_dist = self.distribution.dist
+        
+        print("Generating PCE expansion ...\n")
 
         expansion, norms = cp.generate_expansion(
             PCE_order, joint_dist, normed=True, graded=False, retall=True

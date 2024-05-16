@@ -23,7 +23,7 @@ from tqdm.autonotebook import tqdm
 class time_dependent_sensitivity_analysis:
     """A class that performs time-dependent global sensitivity analysis."""
 
-    # TODO: sort class members and annotate public/private
+    # public
     simulator: utils.simulator
     distribution: utils.distribution
     param_names: list[str]
@@ -39,6 +39,7 @@ class time_dependent_sensitivity_analysis:
     higher_order_sobol_indices: Dict[str, pd.DataFrame]
     td_higher_order_sobol_indices: Dict[str, pd.DataFrame]
 
+    # private
     _num_timesteps_quadrature: Optional[int]
 
     _PCE_option: Optional[str]
@@ -47,12 +48,14 @@ class time_dependent_sensitivity_analysis:
     _KL_truncation_level: Optional[int]
     _covariance_matrix: Optional[NDArray]
     _sorted_eigenvalues: Optional[NDArray]
+    _sorted_eigenvectors: Optional[NDArray]
     _sorted_eigenvalues_normed: Optional[NDArray]
     _r_Nkl: Optional[NDArray]
+    _KL_mean: Optional[NDArray]
 
     _polynomial_dict: Optional[Dict]
     _PCE_coeffs: Dict[str, list[NDArray]]
-    _polynomial_pointwise: Optional[list[cp.ndpoly]]
+    _polynomial_pointwise: Dict[str, Optional[list[cp.ndpoly]]]
 
     _param_combinations_second_order: Optional[list[str]]
     _param_combinations_third_order: Optional[list[str]]
@@ -93,12 +96,14 @@ class time_dependent_sensitivity_analysis:
         self._KL_truncation_level = None
         self._covariance_matrix = None
         self._sorted_eigenvalues = None
+        self._sorted_eigenvectors = None
         self._sorted_eigenvalues_normed = None
         self._r_Nkl = None
+        self._KL_mean = None
 
         self._polynomial_dict = None
         self._PCE_coeffs = {}
-        self._polynomial_pointwise = None
+        self._polynomial_pointwise = {"PCE": None, "KL": None}
 
         self._param_combinations_second_order = None
         self._param_combinations_third_order = None
@@ -114,9 +119,9 @@ class time_dependent_sensitivity_analysis:
         **kwargs: Union[int, str],
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """A method that generates parameter samples and runs the simulator.
-        
+
         Options:
-        
+
         sampling_method
             - 'random': random sampling
             - 'quasirandom': quasi-random sampling (quasirandom_rule: 'halton', 'sobol', 'latin_hypercube')
@@ -183,10 +188,10 @@ class time_dependent_sensitivity_analysis:
 
     def compute_sobol_indices(self, method: str, **kwargs) -> pd.DataFrame:
         """A method that runs the time-dependent sensitivity analysis and returns the generalized sobol indices.
-        
+
         Options:
             - method: 'KL', 'PCE'
-        
+
         kwargs:
             - num_timesteps_quadrature: number of quadrature nodes in time (default is 100)
             - KL_truncation_level: truncation level for the Karhunen-Loève expansion (default is 8)
@@ -199,9 +204,7 @@ class time_dependent_sensitivity_analysis:
         # TODO: read out kwargs that are currently in constructor method
 
         if method == "KL":
-            self._KL_analysis(
-                self.params.to_numpy(), self.outputs.to_numpy(), **kwargs
-            )
+            self._KL_analysis(self.params.to_numpy(), self.outputs.to_numpy(), **kwargs)
         elif method == "PCE":
             self._PCE_analysis(
                 self.params.to_numpy(), self.outputs.to_numpy(), **kwargs
@@ -233,6 +236,7 @@ class time_dependent_sensitivity_analysis:
                 for output in output_centered
             ]
         )
+        self._KL_mean = np.interp(timesteps_quadrature, timesteps_solver, mean)
 
         # Form covariance matrix
         covariance_matrix = np.zeros(
@@ -270,6 +274,7 @@ class time_dependent_sensitivity_analysis:
 
         # save eigenvalue spectrum and the variance ratio for later plotting and sanity checks
         self._sorted_eigenvalues = sorted_eigenvalues
+        self._sorted_eigenvectors = sorted_eigenvectors
         self._sorted_eigenvalues_normed = sorted_eigenvalues / sorted_eigenvalues[0]
         self._r_Nkl = [
             sum(sorted_eigenvalues[:i]) / sum(sorted_eigenvalues)
@@ -298,13 +303,13 @@ class time_dependent_sensitivity_analysis:
         PCE_order = kwargs.get("PCE_order", 4)
         PCE_option = self._PCE_option
         joint_dist = self.distribution.dist
-        
+
         print("Generating PCE expansion ...\n")
 
         expansion, norms = cp.generate_expansion(
             PCE_order, joint_dist, normed=True, graded=False, retall=True
         )
-        
+
         print("Fitting surrogate models ...\n")
 
         num_cores = multiprocessing.cpu_count()
@@ -336,12 +341,14 @@ class time_dependent_sensitivity_analysis:
             )
 
         surrogate_model_coeffs = [surrogate_models[i][1] for i in range(N_kl)]
+        polynomial_pointwise = [surrogate_models[i][0] for i in range(N_kl)]
         surrogate_model_poly = surrogate_models[0][0]
 
         # Compute the generalized Sobol indices
         surrogate_model_poly_dict = surrogate_model_poly.todict()
         self._polynomial_dict = surrogate_model_poly_dict
         self._PCE_coeffs["KL"] = surrogate_model_coeffs
+        self._polynomial_pointwise["KL"] = polynomial_pointwise
         sum_coeff_per_param_total = np.zeros((N_kl, self.num_params))
         sum_coeff_per_param_first = np.zeros((N_kl, self.num_params))
 
@@ -408,15 +415,15 @@ class time_dependent_sensitivity_analysis:
         PCE_order = kwargs.get("PCE_order", 4)
         PCE_option = self._PCE_option
         joint_dist = self.distribution.dist
-        
+
         print("Generating PCE expansion ...\n")
 
         expansion, norms = cp.generate_expansion(
             PCE_order, joint_dist, normed=True, graded=False, retall=True
         )
-        
+
         print("Fitting surrogate models ...\n")
-        
+
         num_cores = multiprocessing.cpu_count()
         if PCE_option == "regression":
             surrogate_models_pointwise = Parallel(n_jobs=num_cores)(
@@ -451,7 +458,7 @@ class time_dependent_sensitivity_analysis:
         # save for later computation of second and third order sobol indices and PCE surrogate evaluation
         self._polynomial_dict = polynomial_pointwise_dict
         self._PCE_coeffs["PCE"] = coeff_pointwise
-        self._polynomial_pointwise = polynomial_pointwise
+        self._polynomial_pointwise["PCE"] = polynomial_pointwise
 
         # Generate masks to select coefficients for each parameter depending on occurence in expansion
         masks_total = []
@@ -815,15 +822,37 @@ class time_dependent_sensitivity_analysis:
         key = "third_" + method
         return (self.higher_order_sobol_indices[key], param_combinations)
 
-    def evaluate_PCE_surrogate(self, param: NDArray) -> NDArray:
-        if self._polynomial_pointwise is None:
+    # TODO make evaluation of KL surrogate possible too
+    def evaluate_surrogate_model(self, param: NDArray, method: str) -> NDArray:
+        if method == "PCE":
+            if self._polynomial_pointwise["PCE"] is None:
+                raise ValueError(
+                    "No PCE surrogate model available. Please run the PCE method first.\n"
+                )
+            result = [
+                cp.call(self._polynomial_pointwise["PCE"][m], param)
+                for m in range(self._num_timesteps_quadrature)
+            ]
+        elif method == "KL":
+            if self._polynomial_pointwise["KL"] is None:
+                raise ValueError(
+                    "No KL surrogate model available. Please run the KL method first.\n"
+                )
+            result = [
+                self._KL_mean[m]
+                + sum(
+                    [
+                        cp.call(self._polynomial_pointwise["KL"][i], param)
+                        * self._sorted_eigenvectors[m][i]
+                        for i in range(self._KL_truncation_level)
+                    ]
+                )
+                for m in range(self._num_timesteps_quadrature)
+            ]
+        else:
             raise ValueError(
-                "No PCE surrogate models available. Please run the PCE method first.\n"
+                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PCE').\n"
             )
-        result = [
-            cp.call(self._polynomial_pointwise[m], param)
-            for m in range(self._num_timesteps_quadrature)
-        ]
         return np.array(result)
 
     def plot(self, plot_option: str) -> None:

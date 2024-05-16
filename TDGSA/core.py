@@ -15,7 +15,7 @@ from tqdm.autonotebook import tqdm
 
 
 # TODO: Better docstrings
-# TODO: Make initialization of time_dependent_sensitivity_analysis possible with pre_existing data
+# TODO: Make KL surrogate model a callable method like PCE
 # TODO: Implement pointwise-in-time GPR surrogate models
 # TODO: Implement MC method
 
@@ -70,7 +70,7 @@ class time_dependent_sensitivity_analysis:
 
         if data is not None:
             self.params = data[0]
-            self.output = data[1]
+            self.outputs = data[1]
         else:
             self.params = None
             self.outputs = None

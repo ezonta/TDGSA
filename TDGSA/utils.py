@@ -59,7 +59,7 @@ class distribution:
         self.param_ranges = param_ranges
         self.dist_dict = dist_dict
 
-    def sample(self, num_samples: int, rule: str) -> NDArray:
+    def sample(self, num_samples: int, rule: str = "random") -> NDArray:
         """docstring"""
         samples = np.array(self.dist.sample(num_samples, rule=rule)).T
         return samples

@@ -13,9 +13,7 @@ from typing import Callable, Optional, Union, Dict
 from numpy.typing import NDArray
 from tqdm.autonotebook import tqdm
 
-
 # TODO: Better docstrings
-# TODO: Make KL surrogate model a callable method like PCE
 # TODO: Implement pointwise-in-time GPR surrogate models
 # TODO: Implement MC method
 
@@ -65,7 +63,7 @@ class time_dependent_sensitivity_analysis:
         simulator: utils.simulator,
         distribution: utils.distribution,
         data: Optional[tuple[pd.DataFrame, pd.DataFrame]] = None,
-        **kwargs: Union[int, str],
+        **kwargs: Union[int, str, NDArray],
     ) -> None:
 
         self.simulator = simulator
@@ -74,6 +72,8 @@ class time_dependent_sensitivity_analysis:
         if data is not None:
             self.params = data[0]
             self.outputs = data[1]
+            self._PCE_option = kwargs.get("PCE_option", "regression")
+            self._PCE_quad_weights = kwargs.get("PCE_quad_weights", None)
         else:
             self.params = None
             self.outputs = None
@@ -548,7 +548,6 @@ class time_dependent_sensitivity_analysis:
         """A method that performs TD-GSA using Monte Carlo estimators."""
         raise NotImplementedError("MC method not yet implemented.")
 
-    # TODO: make possible to compute with KL as well
     def compute_second_order_sobol_indices(
         self, method: str
     ) -> tuple[pd.DataFrame, list[str]]:
@@ -682,7 +681,6 @@ class time_dependent_sensitivity_analysis:
         key = "second_" + method
         return (self.higher_order_sobol_indices[key], param_combinations)
 
-    # TODO: same changes as in second order computation
     def compute_third_order_sobol_indices(
         self, method: str
     ) -> tuple[pd.DataFrame, list[str]]:
@@ -822,7 +820,6 @@ class time_dependent_sensitivity_analysis:
         key = "third_" + method
         return (self.higher_order_sobol_indices[key], param_combinations)
 
-    # TODO make evaluation of KL surrogate possible too
     def evaluate_surrogate_model(self, param: NDArray, method: str) -> NDArray:
         if method == "PCE":
             if self._polynomial_pointwise["PCE"] is None:
@@ -957,7 +954,6 @@ class time_dependent_sensitivity_analysis:
         plt.tight_layout()
         plt.show()
 
-    # TODO plot second and third order sobol indices (depending on which was already computed)
     def _plot_higher_order_sobol_indices(self) -> None:
         plot_list = [
             key in self.higher_order_sobol_indices

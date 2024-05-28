@@ -77,6 +77,8 @@ class time_dependent_sensitivity_analysis:
         else:
             self.params = None
             self.outputs = None
+            self._PCE_option = None
+            self._PCE_quad_weights = None
 
         self.param_names = self.distribution.param_names
         self.num_samples = None
@@ -89,9 +91,6 @@ class time_dependent_sensitivity_analysis:
         self.td_higher_order_sobol_indices = {}
 
         self._num_timesteps_quadrature = None
-
-        self._PCE_option = None
-        self._PCE_quad_weights = None
 
         self._KL_truncation_level = None
         self._covariance_matrix = None
@@ -448,14 +447,16 @@ class time_dependent_sensitivity_analysis:
                 for m in tqdm(range(len(timesteps_quadrature)))
             )
 
-        polynomial_pointwise_dict = surrogate_models_pointwise[0][0].todict()
         coeff_pointwise = [
-            surrogate_models_pointwise[m][1] for m in range(len(timesteps_quadrature))
+            surrogate_models_pointwise[i][1] for i in range(len(timesteps_quadrature))
         ]
         polynomial_pointwise = [
-            surrogate_models_pointwise[m][0] for m in range(len(timesteps_quadrature))
+            surrogate_models_pointwise[i][0] for i in range(len(timesteps_quadrature))
         ]
+        surrogate_model_poly = surrogate_models_pointwise[0][0]
+
         # save for later computation of second and third order sobol indices and PCE surrogate evaluation
+        polynomial_pointwise_dict = surrogate_model_poly.todict()
         self._polynomial_dict = polynomial_pointwise_dict
         self._PCE_coeffs["PCE"] = coeff_pointwise
         self._polynomial_pointwise["PCE"] = polynomial_pointwise

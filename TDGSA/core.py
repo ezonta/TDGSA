@@ -14,6 +14,7 @@ from numpy.typing import NDArray
 from tqdm.autonotebook import tqdm
 
 # TODO: Better docstrings
+# TODO: Implement cross-truncation option for PCE
 # TODO: Implement pointwise-in-time GPR surrogate models
 # TODO: Implement MC method
 
@@ -63,7 +64,7 @@ class time_dependent_sensitivity_analysis:
         simulator: utils.simulator,
         distribution: utils.distribution,
         data: Optional[tuple[pd.DataFrame, pd.DataFrame]] = None,
-        **kwargs: Union[int, str, NDArray],
+        **kwargs: Union[int, str, NDArray, None],
     ) -> None:
 
         self.simulator = simulator
@@ -304,9 +305,11 @@ class time_dependent_sensitivity_analysis:
         joint_dist = self.distribution.dist
 
         print("Generating PCE expansion ...\n")
+        
+        cross_truncation = kwargs.get("cross_truncation", 1.0)
 
         expansion, norms = cp.generate_expansion(
-            PCE_order, joint_dist, normed=True, graded=False, retall=True
+            PCE_order, joint_dist, normed=True, graded=False, retall=True, cross_truncation=cross_truncation
         )
 
         print("Fitting surrogate models ...\n")
@@ -416,9 +419,11 @@ class time_dependent_sensitivity_analysis:
         joint_dist = self.distribution.dist
 
         print("Generating PCE expansion ...\n")
+        
+        cross_truncation = kwargs.get("cross_truncation", 1.0)
 
         expansion, norms = cp.generate_expansion(
-            PCE_order, joint_dist, normed=True, graded=False, retall=True
+            PCE_order, joint_dist, normed=True, graded=False, retall=True, cross_truncation=cross_truncation
         )
 
         print("Fitting surrogate models ...\n")

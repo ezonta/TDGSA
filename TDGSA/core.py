@@ -14,7 +14,6 @@ from numpy.typing import NDArray
 from tqdm.autonotebook import tqdm
 
 # TODO: Better docstrings
-# TODO: Implement cross-truncation option for PCE
 # TODO: Implement pointwise-in-time GPR surrogate models
 # TODO: Implement MC method
 
@@ -195,7 +194,9 @@ class time_dependent_sensitivity_analysis:
         kwargs:
             - num_timesteps_quadrature: number of quadrature nodes in time (default is 100)
             - KL_truncation_level: truncation level for the Karhunen-Loève expansion (default is 8)
-            - PCE_order: order of the Polynomial Chaos Expansion (default is 4)"""
+            - PCE_order: order of the Polynomial Chaos Expansion (default is 4)
+            - cross_truncation: cross truncation parameter for the PCE expansion (default is 1.0)
+            - regression_model: 'linear' or 'lars', regression model for the PCE expansion (default is 'linear')"""
         if self.outputs is None:
             raise ValueError(
                 "No data available. Please run sample_params_and_run_simulator() first.\n"
@@ -316,13 +317,22 @@ class time_dependent_sensitivity_analysis:
 
         num_cores = multiprocessing.cpu_count()
         if PCE_option == "regression":
+            regression_model = kwargs.get("regression_model", "linear")
+            if regression_model == "linear":
+                model=linear_model.LinearRegression(fit_intercept=False)
+            elif regression_model == "lars":
+                model=linear_model.Lars(fit_intercept=False)
+            else:
+                raise ValueError(
+                    f"Unknown regression model: {regression_model}. Please choose from 'linear' or 'lars'.\n"
+                )
             surrogate_models = Parallel(n_jobs=num_cores)(
                 delayed(cp.fit_regression)(
                     expansion,
                     params.T,
                     KL_modes[:, i],
                     retall=1,
-                    model=linear_model.LinearRegression(fit_intercept=False),
+                    model=model,
                 )
                 for i in tqdm(range(N_kl))
             )
@@ -430,13 +440,22 @@ class time_dependent_sensitivity_analysis:
 
         num_cores = multiprocessing.cpu_count()
         if PCE_option == "regression":
+            regression_model = kwargs.get("regression_model", "linear")
+            if regression_model == "linear":
+                model=linear_model.LinearRegression(fit_intercept=False)
+            elif regression_model == "lars":
+                model=linear_model.Lars(fit_intercept=False)
+            else:
+                raise ValueError(
+                    f"Unknown regression model: {regression_model}. Please choose from 'linear' or 'lars'.\n"
+                )
             surrogate_models_pointwise = Parallel(n_jobs=num_cores)(
                 delayed(cp.fit_regression)(
                     expansion,
                     params.T,
                     outputs_quadrature[:, m],
                     retall=1,
-                    model=linear_model.LinearRegression(fit_intercept=False),
+                    model=model,
                 )
                 for m in tqdm(range(len(timesteps_quadrature)))
             )

@@ -368,7 +368,7 @@ class time_dependent_sensitivity_analysis:
         masks_first = []
         for i in range(self.num_params):
             mask_total = [
-                1 if key[i] == 0 else 0 for key in surrogate_model_poly_dict.keys()
+                1 if key[i] != 0 else 0 for key in surrogate_model_poly_dict.keys()
             ]
             masks_total.append(mask_total)
             mask_first = [
@@ -392,11 +392,11 @@ class time_dependent_sensitivity_analysis:
                 )
 
         sum_eigenvalues = sum(sorted_eigenvalues)
-        sobol_indices_total = np.ones(self.num_params)
+        sobol_indices_total = np.zeros(self.num_params)
         sobol_indices_first = np.zeros(self.num_params)
 
         for i in range(self.num_params):
-            sobol_indices_total[i] -= (
+            sobol_indices_total[i] = (
                 sum(sum_coeff_per_param_total[:, i]) / sum_eigenvalues
             )
             sobol_indices_first[i] = (

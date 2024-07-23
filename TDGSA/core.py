@@ -196,7 +196,8 @@ class time_dependent_sensitivity_analysis:
             - KL_truncation_level: truncation level for the Karhunen-Loève expansion (default is 8)
             - PCE_order: order of the Polynomial Chaos Expansion (default is 4)
             - cross_truncation: cross truncation parameter for the PCE expansion (default is 1.0)
-            - regression_model: 'linear' or 'lars', regression model for the PCE expansion (default is 'linear')"""
+            - regression_model: 'linear' or 'lars', regression model for the PCE expansion (default is 'linear')
+            - num_nonzero: number of non-zero coefficients for the LARS regression model (default is 500)"""
         if self.outputs is None:
             raise ValueError(
                 "No data available. Please run sample_params_and_run_simulator() first.\n"
@@ -306,11 +307,16 @@ class time_dependent_sensitivity_analysis:
         joint_dist = self.distribution.dist
 
         print("Generating PCE expansion ...\n")
-        
+
         cross_truncation = kwargs.get("cross_truncation", 1.0)
 
         expansion, norms = cp.generate_expansion(
-            PCE_order, joint_dist, normed=True, graded=False, retall=True, cross_truncation=cross_truncation
+            PCE_order,
+            joint_dist,
+            normed=True,
+            graded=False,
+            retall=True,
+            cross_truncation=cross_truncation,
         )
 
         print("Fitting surrogate models ...\n")
@@ -319,9 +325,12 @@ class time_dependent_sensitivity_analysis:
         if PCE_option == "regression":
             regression_model = kwargs.get("regression_model", "linear")
             if regression_model == "linear":
-                model=linear_model.LinearRegression(fit_intercept=False)
+                model = linear_model.LinearRegression(fit_intercept=False)
             elif regression_model == "lars":
-                model=linear_model.Lars(fit_intercept=False)
+                num_nonzero = kwargs.get("num_nonzero", 500)
+                model = linear_model.Lars(
+                    fit_intercept=False, n_nonzero_coefs=num_nonzero
+                )
             else:
                 raise ValueError(
                     f"Unknown regression model: {regression_model}. Please choose from 'linear' or 'lars'.\n"
@@ -429,11 +438,16 @@ class time_dependent_sensitivity_analysis:
         joint_dist = self.distribution.dist
 
         print("Generating PCE expansion ...\n")
-        
+
         cross_truncation = kwargs.get("cross_truncation", 1.0)
 
         expansion, norms = cp.generate_expansion(
-            PCE_order, joint_dist, normed=True, graded=False, retall=True, cross_truncation=cross_truncation
+            PCE_order,
+            joint_dist,
+            normed=True,
+            graded=False,
+            retall=True,
+            cross_truncation=cross_truncation,
         )
 
         print("Fitting surrogate models ...\n")
@@ -442,9 +456,12 @@ class time_dependent_sensitivity_analysis:
         if PCE_option == "regression":
             regression_model = kwargs.get("regression_model", "linear")
             if regression_model == "linear":
-                model=linear_model.LinearRegression(fit_intercept=False)
+                model = linear_model.LinearRegression(fit_intercept=False)
             elif regression_model == "lars":
-                model=linear_model.Lars(fit_intercept=False)
+                num_nonzero = kwargs.get("num_nonzero", 500)
+                model = linear_model.Lars(
+                    fit_intercept=False, n_nonzero_coefs=num_nonzero
+                )
             else:
                 raise ValueError(
                     f"Unknown regression model: {regression_model}. Please choose from 'linear' or 'lars'.\n"
@@ -1072,7 +1089,6 @@ class time_dependent_sensitivity_analysis:
         plt.show()
 
     def _plot_sampled_params(self) -> None:
-
         def plot_hist(ax, data, param_name, num_bins=50):
             sns.histplot(data, bins=num_bins, ax=ax)
             ax.set_xlabel(param_name)

@@ -363,6 +363,7 @@ class time_dependent_sensitivity_analysis:
 
         surrogate_model_coeffs = [surrogate_models[i][1] for i in range(N_kl)]
         polynomial_pointwise = [surrogate_models[i][0] for i in range(N_kl)]
+        # TODO: with LARS, the surrogate model could be different for each time step, maybe this needs adjustment
         surrogate_model_poly = surrogate_models[0][0]
 
         # Compute the generalized Sobol indices
@@ -400,7 +401,7 @@ class time_dependent_sensitivity_analysis:
                     surrogate_model_coeffs[j] ** 2 * masks_first[i]
                 )
 
-        sum_eigenvalues = sum(sorted_eigenvalues)
+        sum_eigenvalues = sum(sorted_eigenvalues[:N_kl])
         sobol_indices_total = np.zeros(self.num_params)
         sobol_indices_first = np.zeros(self.num_params)
 
@@ -494,6 +495,7 @@ class time_dependent_sensitivity_analysis:
         polynomial_pointwise = [
             surrogate_models_pointwise[i][0] for i in range(len(timesteps_quadrature))
         ]
+        # TODO: with LARS, the surrogate model could be different for each time step, maybe this needs adjustment
         surrogate_model_poly = surrogate_models_pointwise[0][0]
 
         # save for later computation of second and third order sobol indices and PCE surrogate evaluation

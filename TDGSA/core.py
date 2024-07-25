@@ -279,7 +279,7 @@ class time_dependent_sensitivity_analysis:
         self._sorted_eigenvectors = sorted_eigenvectors
         self._sorted_eigenvalues_normed = sorted_eigenvalues / sorted_eigenvalues[0]
         self._r_Nkl = [
-            sum(sorted_eigenvalues[:i]) / sum(sorted_eigenvalues)
+            np.sum(sorted_eigenvalues[:i]) / np.sum(sorted_eigenvalues)
             for i in range(len(sorted_eigenvalues))
         ]
         if self._r_Nkl[-1] < 0.90:
@@ -401,16 +401,16 @@ class time_dependent_sensitivity_analysis:
                     surrogate_model_coeffs[j] ** 2 * masks_first[i]
                 )
 
-        sum_eigenvalues = sum(sorted_eigenvalues[:N_kl])
+        sum_eigenvalues = np.sum(sorted_eigenvalues[:N_kl])
         sobol_indices_total = np.zeros(self.num_params)
         sobol_indices_first = np.zeros(self.num_params)
 
         for i in range(self.num_params):
             sobol_indices_total[i] = (
-                sum(sum_coeff_per_param_total[:, i]) / sum_eigenvalues
+                np.sum(sum_coeff_per_param_total[:, i]) / sum_eigenvalues
             )
             sobol_indices_first[i] = (
-                sum(sum_coeff_per_param_first[:, i]) / sum_eigenvalues
+                np.sum(sum_coeff_per_param_first[:, i]) / sum_eigenvalues
             )
         sobol_indices = np.zeros((self.num_params, 2))
         sobol_indices[:, 0] = sobol_indices_first

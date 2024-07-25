@@ -196,7 +196,7 @@ class time_dependent_sensitivity_analysis:
             - KL_truncation_level: truncation level for the Karhunen-Loève expansion (default is 8)
             - PCE_order: order of the Polynomial Chaos Expansion (default is 4)
             - cross_truncation: cross truncation parameter for the PCE expansion (default is 1.0)
-            - regression_model: 'linear' or 'lars', regression model for the PCE expansion (default is 'linear')
+            - regression_model: 'linear', 'lars' or 'lars-cv', regression model for the PCE expansion (default is 'linear')
             - num_nonzero: number of non-zero coefficients for the LARS regression model (default is 500)"""
         if self.outputs is None:
             raise ValueError(
@@ -331,6 +331,8 @@ class time_dependent_sensitivity_analysis:
                 model = linear_model.Lars(
                     fit_intercept=False, n_nonzero_coefs=num_nonzero
                 )
+            elif regression_model == "lars-cv":
+                model = linear_model.LarsCV(fit_intercept=False)
             else:
                 raise ValueError(
                     f"Unknown regression model: {regression_model}. Please choose from 'linear' or 'lars'.\n"
@@ -463,6 +465,8 @@ class time_dependent_sensitivity_analysis:
                 model = linear_model.Lars(
                     fit_intercept=False, n_nonzero_coefs=num_nonzero
                 )
+            elif regression_model == "lars-cv":
+                model = linear_model.LarsCV(fit_intercept=False)
             else:
                 raise ValueError(
                     f"Unknown regression model: {regression_model}. Please choose from 'linear' or 'lars'.\n"

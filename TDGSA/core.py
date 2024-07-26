@@ -365,11 +365,9 @@ class time_dependent_sensitivity_analysis:
 
         surrogate_model_coeffs = [surrogate_models[i][1] for i in range(N_kl)]
         polynomial_pointwise = [surrogate_models[i][0] for i in range(N_kl)]
-        # TODO: with LARS, the surrogate model could be different for each time step, maybe this needs adjustment
-        surrogate_model_poly = surrogate_models[0][0]
+        surrogate_model_poly_dict = [polynomial_pointwise[i].todict() for i in range(N_kl)]
 
         # Compute the generalized Sobol indices
-        surrogate_model_poly_dict = surrogate_model_poly.todict()
         self._polynomial_dict = surrogate_model_poly_dict
         self._PCE_coeffs["KL"] = surrogate_model_coeffs
         self._polynomial_pointwise["KL"] = polynomial_pointwise
@@ -378,29 +376,34 @@ class time_dependent_sensitivity_analysis:
 
         masks_total = []
         masks_first = []
-        for i in range(self.num_params):
-            mask_total = [
-                1 if key[i] != 0 else 0 for key in surrogate_model_poly_dict.keys()
-            ]
-            masks_total.append(mask_total)
-            mask_first = [
-                1 if key[i] != 0 and key.count(0) == (len(key) - 1) else 0
-                for key in surrogate_model_poly_dict.keys()
-            ]
-            masks_first.append(mask_first)
-        masks_total = np.array(masks_total)
-        masks_first = np.array(masks_first)
+        for j in range(N_kl):
+            masks_total_temp = []
+            masks_first_temp = []
+            for i in range(self.num_params):
+                mask_total_temp = [
+                    1 if key[i] != 0 else 0 for key in surrogate_model_poly_dict[j].keys()
+                ]
+                masks_total_temp.append(mask_total_temp)
+                mask_first_temp = [
+                    1 if key[i] != 0 and key.count(0) == (len(key) - 1) else 0
+                    for key in surrogate_model_poly_dict[j].keys()
+                ]
+                masks_first_temp.append(mask_first_temp)
+                masks_total_temp = np.array(masks_total_temp)
+                masks_first_temp = np.array(masks_first_temp)
+            masks_total.append(masks_total_temp)
+            masks_first.append(masks_first_temp)
 
         # assuming that ||q_k||^2 = 1 for all k when using normalized polynomials
         for i in range(self.num_params):
             for j in range(N_kl):
                 # sum all squared coefficients where the term does not contain q_j
                 sum_coeff_per_param_total[j, i] = np.sum(
-                    surrogate_model_coeffs[j] ** 2 * masks_total[i]
+                    surrogate_model_coeffs[j] ** 2 * masks_total[j][i]
                 )
                 # sum all squared coefficients where the term contains only q_j
                 sum_coeff_per_param_first[j, i] = np.sum(
-                    surrogate_model_coeffs[j] ** 2 * masks_first[i]
+                    surrogate_model_coeffs[j] ** 2 * masks_first[j][i]
                 )
 
         sum_eigenvalues = np.sum(sorted_eigenvalues[:N_kl])
@@ -499,11 +502,8 @@ class time_dependent_sensitivity_analysis:
         polynomial_pointwise = [
             surrogate_models_pointwise[i][0] for i in range(len(timesteps_quadrature))
         ]
-        # TODO: with LARS, the surrogate model could be different for each time step, maybe this needs adjustment
-        surrogate_model_poly = surrogate_models_pointwise[0][0]
-
         # save for later computation of second and third order sobol indices and PCE surrogate evaluation
-        polynomial_pointwise_dict = surrogate_model_poly.todict()
+        polynomial_pointwise_dict = [polynomial_pointwise[i].todict() for i in range(len(timesteps_quadrature))]
         self._polynomial_dict = polynomial_pointwise_dict
         self._PCE_coeffs["PCE"] = coeff_pointwise
         self._polynomial_pointwise["PCE"] = polynomial_pointwise
@@ -511,18 +511,23 @@ class time_dependent_sensitivity_analysis:
         # Generate masks to select coefficients for each parameter depending on occurence in expansion
         masks_total = []
         masks_first = []
-        for i in range(self.num_params):
-            mask_total = [
-                1 if key[i] != 0 else 0 for key in polynomial_pointwise_dict.keys()
-            ]
-            mask_first = [
-                1 if key[i] != 0 and key.count(0) == (len(key) - 1) else 0
-                for key in polynomial_pointwise_dict.keys()
-            ]
-            masks_total.append(mask_total)
-            masks_first.append(mask_first)
-        masks_total = np.array(masks_total)
-        masks_first = np.array(masks_first)
+        for m in range(len(timesteps_quadrature)):
+            masks_total_temp = []
+            masks_first_temp = []
+            for i in range(self.num_params):
+                mask_total_temp = [
+                    1 if key[i] != 0 else 0 for key in polynomial_pointwise_dict[m].keys()
+                ]
+                masks_total_temp.append(mask_total_temp)
+                mask_first_temp = [
+                    1 if key[i] != 0 and key.count(0) == (len(key) - 1) else 0
+                    for key in polynomial_pointwise_dict[m].keys()
+                ]
+                masks_first_temp.append(mask_first_temp)
+                masks_total_temp = np.array(masks_total_temp)
+                masks_first_temp = np.array(masks_first_temp)
+            masks_total.append(masks_total_temp)
+            masks_first.append(masks_first_temp)
 
         # Compute variances for each parameter at each time step
 
@@ -541,10 +546,10 @@ class time_dependent_sensitivity_analysis:
             for i in range(self.num_params):
 
                 variance_over_time_total[m, i] = np.sum(
-                    coeff_pointwise[m] ** 2 * masks_total[i]
+                    coeff_pointwise[m] ** 2 * masks_total[m][i]
                 )
                 variance_over_time_first[m, i] = np.sum(
-                    coeff_pointwise[m] ** 2 * masks_first[i]
+                    coeff_pointwise[m] ** 2 * masks_first[m][i]
                 )
 
         # Compute the generalized Sobol indices
@@ -596,6 +601,7 @@ class time_dependent_sensitivity_analysis:
         """A method that performs TD-GSA using Monte Carlo estimators."""
         raise NotImplementedError("MC method not yet implemented.")
 
+    ## TODO: needs to be fixed with new polynomial dict that has an entry for each KL mode or timestep due to LARS
     def compute_second_order_sobol_indices(
         self, method: str
     ) -> tuple[pd.DataFrame, list[str]]:

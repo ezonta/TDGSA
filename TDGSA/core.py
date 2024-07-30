@@ -389,8 +389,8 @@ class time_dependent_sensitivity_analysis:
                     for key in surrogate_model_poly_dict[j].keys()
                 ]
                 masks_first_temp.append(mask_first_temp)
-                masks_total_temp = np.array(masks_total_temp)
-                masks_first_temp = np.array(masks_first_temp)
+            masks_total_temp = np.array(masks_total_temp)
+            masks_first_temp = np.array(masks_first_temp)
             masks_total.append(masks_total_temp)
             masks_first.append(masks_first_temp)
 
@@ -524,8 +524,8 @@ class time_dependent_sensitivity_analysis:
                     for key in polynomial_pointwise_dict[m].keys()
                 ]
                 masks_first_temp.append(mask_first_temp)
-                masks_total_temp = np.array(masks_total_temp)
-                masks_first_temp = np.array(masks_first_temp)
+            masks_total_temp = np.array(masks_total_temp)
+            masks_first_temp = np.array(masks_first_temp)
             masks_total.append(masks_total_temp)
             masks_first.append(masks_first_temp)
 

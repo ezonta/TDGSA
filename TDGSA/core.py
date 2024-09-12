@@ -195,12 +195,10 @@ class time_dependent_sensitivity_analysis:
             - num_timesteps_quadrature: number of quadrature nodes in time (default is 100)
             - KL_truncation_level: truncation level for the Karhunen-Loève expansion (default is 8)
             - PCE_order: order of the Polynomial Chaos Expansion (default is 4)
-            - cross_truncation: cross truncation parameter for the PCE expansion (default is 1.0)
-            - regression_model: 'linear', 'lars' or 'lars-cv', regression model for the PCE expansion (default is 'linear')
-            - num_nonzero: number of non-zero coefficients for the LARS regression model (default is 500)"""
+            - cross_truncation: cross truncation parameter for the PCE expansion (default is 1.0)"""
         if self.outputs is None:
             raise ValueError(
-                "No data available. Please run sample_params_and_run_simulator() first.\n"
+                "No data available. Please run sample_params_and_run_simulator() first. \n"
             )
 
         # TODO: read out kwargs that are currently in constructor method
@@ -211,8 +209,6 @@ class time_dependent_sensitivity_analysis:
             self._PCE_analysis(
                 self.params.to_numpy(), self.outputs.to_numpy(), **kwargs
             )
-        elif method == "MC":
-            self._MC_analysis()
         else:
             raise ValueError(
                 f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL'), Polynomial Chaos Expansion ('PCE'), or Monte Carlo ('MC').\n"
@@ -284,7 +280,7 @@ class time_dependent_sensitivity_analysis:
         ]
         if self._r_Nkl[-1] < 0.90:
             raise Warning(
-                "The variance ratio is less than 90%. Consider increasing the truncation level. \n You can view the eigenvalue spectrum by calling the plot() method.\n"
+                "The variance ratio is less than 90%. Consider increasing the truncation level. \n You can view the eigenvalue spectrum by calling the plot() method. \n"
             )
 
         # Choose a truncation level N_kl and compute the discretized KL modes
@@ -323,20 +319,7 @@ class time_dependent_sensitivity_analysis:
 
         num_cores = multiprocessing.cpu_count()
         if PCE_option == "regression":
-            regression_model = kwargs.get("regression_model", "linear")
-            if regression_model == "linear":
-                model = linear_model.LinearRegression(fit_intercept=False)
-            elif regression_model == "lars":
-                num_nonzero = kwargs.get("num_nonzero", 500)
-                model = linear_model.Lars(
-                    fit_intercept=False, n_nonzero_coefs=num_nonzero
-                )
-            elif regression_model == "lars-cv":
-                model = linear_model.LarsCV(fit_intercept=False)
-            else:
-                raise ValueError(
-                    f"Unknown regression model: {regression_model}. Please choose from 'linear' or 'lars'.\n"
-                )
+            model = linear_model.LinearRegression(fit_intercept=False)
             surrogate_models = Parallel(n_jobs=num_cores)(
                 delayed(cp.fit_regression)(
                     expansion,
@@ -365,7 +348,7 @@ class time_dependent_sensitivity_analysis:
 
         surrogate_model_coeffs = [surrogate_models[i][1] for i in range(N_kl)]
         polynomial_pointwise = [surrogate_models[i][0] for i in range(N_kl)]
-        surrogate_model_poly_dict = [polynomial_pointwise[i].todict() for i in range(N_kl)]
+        surrogate_model_poly_dict = polynomial_pointwise[0].todict()
 
         # Compute the generalized Sobol indices
         self._polynomial_dict = surrogate_model_poly_dict
@@ -381,12 +364,12 @@ class time_dependent_sensitivity_analysis:
             masks_first_temp = []
             for i in range(self.num_params):
                 mask_total_temp = [
-                    1 if key[i] != 0 else 0 for key in surrogate_model_poly_dict[j].keys()
+                    1 if key[i] != 0 else 0 for key in surrogate_model_poly_dict.keys()
                 ]
                 masks_total_temp.append(mask_total_temp)
                 mask_first_temp = [
                     1 if key[i] != 0 and key.count(0) == (len(key) - 1) else 0
-                    for key in surrogate_model_poly_dict[j].keys()
+                    for key in surrogate_model_poly_dict.keys()
                 ]
                 masks_first_temp.append(mask_first_temp)
             masks_total_temp = np.array(masks_total_temp)
@@ -406,17 +389,30 @@ class time_dependent_sensitivity_analysis:
                     surrogate_model_coeffs[j] ** 2 * masks_first[j][i]
                 )
 
+        # check if sum of eigenvalues and squared sum of PCE coefficients agree on total variance
+        # add a warning if the sum of eigenvalues and sum of squared PCE coefficients do not agree and use the sum of squared PCE coefficients as total variance
         sum_eigenvalues = np.sum(sorted_eigenvalues[:N_kl])
+        sum_coefficients = np.sum(
+            [np.sum(surrogate_model_coeffs[j] ** 2) for j in range(N_kl)]
+        )
+        rel_error_variance = (
+            np.abs(sum_eigenvalues - sum_coefficients) / sum_eigenvalues
+        )
+
+        if rel_error_variance > 0.1:
+            denum = sum_coefficients
+            raise Warning(
+                f"The relative error between the sum of eigenvalues and the sum of squared PCE coefficients is larger than 10%: {rel_error_variance:.2f}. The sum of squared PCE coefficients will be used as total variance to compute the Sobol' indices. \n"
+            )
+        else:
+            denum = sum_eigenvalues
+
         sobol_indices_total = np.zeros(self.num_params)
         sobol_indices_first = np.zeros(self.num_params)
 
         for i in range(self.num_params):
-            sobol_indices_total[i] = (
-                np.sum(sum_coeff_per_param_total[:, i]) / sum_eigenvalues
-            )
-            sobol_indices_first[i] = (
-                np.sum(sum_coeff_per_param_first[:, i]) / sum_eigenvalues
-            )
+            sobol_indices_total[i] = np.sum(sum_coeff_per_param_total[:, i]) / denum
+            sobol_indices_first[i] = np.sum(sum_coeff_per_param_first[:, i]) / denum
         sobol_indices = np.zeros((self.num_params, 2))
         sobol_indices[:, 0] = sobol_indices_first
         sobol_indices[:, 1] = sobol_indices_total
@@ -460,20 +456,7 @@ class time_dependent_sensitivity_analysis:
 
         num_cores = multiprocessing.cpu_count()
         if PCE_option == "regression":
-            regression_model = kwargs.get("regression_model", "linear")
-            if regression_model == "linear":
-                model = linear_model.LinearRegression(fit_intercept=False)
-            elif regression_model == "lars":
-                num_nonzero = kwargs.get("num_nonzero", 500)
-                model = linear_model.Lars(
-                    fit_intercept=False, n_nonzero_coefs=num_nonzero
-                )
-            elif regression_model == "lars-cv":
-                model = linear_model.LarsCV(fit_intercept=False)
-            else:
-                raise ValueError(
-                    f"Unknown regression model: {regression_model}. Please choose from 'linear' or 'lars'.\n"
-                )
+            model = linear_model.LinearRegression(fit_intercept=False)
             surrogate_models_pointwise = Parallel(n_jobs=num_cores)(
                 delayed(cp.fit_regression)(
                     expansion,
@@ -503,7 +486,7 @@ class time_dependent_sensitivity_analysis:
             surrogate_models_pointwise[i][0] for i in range(len(timesteps_quadrature))
         ]
         # save for later computation of second and third order sobol indices and PCE surrogate evaluation
-        polynomial_pointwise_dict = [polynomial_pointwise[i].todict() for i in range(len(timesteps_quadrature))]
+        polynomial_pointwise_dict = polynomial_pointwise[0].todict()
         self._polynomial_dict = polynomial_pointwise_dict
         self._PCE_coeffs["PCE"] = coeff_pointwise
         self._polynomial_pointwise["PCE"] = polynomial_pointwise
@@ -516,12 +499,12 @@ class time_dependent_sensitivity_analysis:
             masks_first_temp = []
             for i in range(self.num_params):
                 mask_total_temp = [
-                    1 if key[i] != 0 else 0 for key in polynomial_pointwise_dict[m].keys()
+                    1 if key[i] != 0 else 0 for key in polynomial_pointwise_dict.keys()
                 ]
                 masks_total_temp.append(mask_total_temp)
                 mask_first_temp = [
                     1 if key[i] != 0 and key.count(0) == (len(key) - 1) else 0
-                    for key in polynomial_pointwise_dict[m].keys()
+                    for key in polynomial_pointwise_dict.keys()
                 ]
                 masks_first_temp.append(mask_first_temp)
             masks_total_temp = np.array(masks_total_temp)
@@ -596,10 +579,6 @@ class time_dependent_sensitivity_analysis:
         )
         self.td_sobol_indices["first"] = td_sobol_indices_first
         self.td_sobol_indices["total"] = td_sobol_indices_total
-
-    def _MC_analysis(self) -> None:
-        """A method that performs TD-GSA using Monte Carlo estimators."""
-        raise NotImplementedError("MC method not yet implemented.")
 
     ## TODO: needs to be fixed with new polynomial dict that has an entry for each KL mode or timestep due to LARS
     def compute_second_order_sobol_indices(

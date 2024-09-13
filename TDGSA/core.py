@@ -279,8 +279,8 @@ class time_dependent_sensitivity_analysis:
             for i in range(len(sorted_eigenvalues))
         ]
         if self._r_Nkl[-1] < 0.90:
-            raise Warning(
-                "The variance ratio is less than 90%. Consider increasing the truncation level. \n You can view the eigenvalue spectrum by calling the plot() method. \n"
+            print(
+                "WARNING: The variance ratio is less than 90%. Consider increasing the truncation level. \n You can view the eigenvalue spectrum by calling the plot() method. \n"
             )
 
         # Choose a truncation level N_kl and compute the discretized KL modes
@@ -401,8 +401,8 @@ class time_dependent_sensitivity_analysis:
 
         if rel_error_variance > 0.1:
             denum = sum_coefficients
-            raise Warning(
-                f"The relative error between the sum of eigenvalues and the sum of squared PCE coefficients is larger than 10%: {rel_error_variance:.2f}. The sum of squared PCE coefficients will be used as total variance to compute the Sobol' indices. \n"
+            print(
+                f"WARNING: The relative error between the sum of eigenvalues and the sum of squared PCE coefficients is larger than 10%: {rel_error_variance:.2f}. The sum of squared PCE coefficients will be used as total variance to compute the Sobol' indices. \n"
             )
         else:
             denum = sum_eigenvalues
@@ -580,7 +580,6 @@ class time_dependent_sensitivity_analysis:
         self.td_sobol_indices["first"] = td_sobol_indices_first
         self.td_sobol_indices["total"] = td_sobol_indices_total
 
-    ## TODO: needs to be fixed with new polynomial dict that has an entry for each KL mode or timestep due to LARS
     def compute_second_order_sobol_indices(
         self, method: str
     ) -> tuple[pd.DataFrame, list[str]]:
@@ -588,6 +587,10 @@ class time_dependent_sensitivity_analysis:
         if self._PCE_coeffs is {}:
             raise ValueError(
                 "No polynomial coefficients available. Please run compute_sobol_indices() first.\n"
+            )
+        elif self._num_timesteps_quadrature is None:
+            raise ValueError(
+                "No quadrature nodes available. Please run compute_sobol_indices() first.\n"
             )
 
         timesteps_solver = self.timesteps_solver
@@ -721,6 +724,10 @@ class time_dependent_sensitivity_analysis:
         if self._PCE_coeffs is {}:
             raise ValueError(
                 "No polynomial coefficients available. Please run compute_sobol_indices() first.\n"
+            )
+        elif self._num_timesteps_quadrature is None:
+            raise ValueError(
+                "No quadrature nodes available. Please run compute_sobol_indices() first.\n"
             )
 
         timesteps_solver = self.timesteps_solver

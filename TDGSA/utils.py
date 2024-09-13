@@ -28,7 +28,6 @@ class distribution:
     param_names: list[str]
     param_ranges: list[list[float]]
     dist_dict: Dict[str, tuple[str, list[float]]]
-    num_samples: Optional[int]
 
     def __init__(self, dist_dict: Dict[str, tuple[str, list[float]]]) -> None:
         dist_list = []
@@ -69,18 +68,12 @@ class simulator:
     """docstring"""
 
     model: Callable[[NDArray], NDArray]
-    dist: distribution
     time: NDArray
-    data: Optional[NDArray]
-    num_samples: Optional[int]
-    params: Optional[pd.DataFrame]
-    output: Optional[pd.DataFrame]
 
     def __init__(
         self,
         model: Callable[[NDArray], NDArray],
-        timesteps_solver: NDArray,
-        data: Optional[NDArray] = None,
+        timesteps_solver: NDArray
     ) -> None:
         self.model = model
         self.time = timesteps_solver

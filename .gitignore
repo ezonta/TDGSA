@@ -1,4 +1,6 @@
 /.mypy_cache
+/.pytest_cache
 /td-sensitivity
 /TDGSA/__pycache__
 /TDGSA/TDGSA.egg-info
+/tests/__pycache__

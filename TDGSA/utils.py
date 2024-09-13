@@ -14,7 +14,7 @@ from tqdm.autonotebook import tqdm
 
 class distribution:
     """A wrapper for the distribution class from chaospy. Is initialized with a dictionary of parameter names and their respective distributions.
-    
+
     Example of dist_dict:
     dist_dict = {
         "param1": ("normal", [0, 1]),
@@ -61,19 +61,18 @@ class distribution:
 
     def sample(self, num_samples: int, rule: str = "random") -> NDArray:
         """Sample the distribution using the specified rule.
-        
+
         Options:
             - num_samples: Number of samples to draw from the distribution.
             - rule: 'random', 'halton', 'sobol', or 'latin_hypercube' (default: 'random').
         """
-        
+
         samples = np.array(self.dist.sample(num_samples, rule=rule)).T
         return samples
 
 
 class simulator:
-    """A wrapper for the model of interest. Is initialized with a model function and a time vector that holds the timesteps of the solver.
-    """
+    """A wrapper for the model of interest. Is initialized with a model function and a time vector that holds the timesteps of the solver."""
 
     model: Callable[[NDArray], NDArray]
     time: NDArray

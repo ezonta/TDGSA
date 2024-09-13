@@ -13,13 +13,10 @@ from typing import Callable, Optional, Union, Dict
 from numpy.typing import NDArray
 from tqdm.autonotebook import tqdm
 
-# TODO: Better docstrings
-# TODO: Implement pointwise-in-time GPR surrogate models
-# TODO: Implement MC method
-
 
 class time_dependent_sensitivity_analysis:
-    """A class that performs time-dependent sensitivity analysis using various methods.
+    """A class that performs time-dependent sensitivity analysis using either the 'KL' or 'PCE' approach.
+
     Attributes:
         simulator (utils.simulator): The simulator object used for running simulations.
         distribution (utils.distribution): The distribution object representing the parameter distributions.
@@ -47,7 +44,7 @@ class time_dependent_sensitivity_analysis:
         _polynomial_pointwise (Dict[str, Optional[list[cp.ndpoly]]]): The pointwise polynomials from PCE analysis.
         _param_combinations_second_order (Optional[list[str]]): The second-order parameter combinations.
         _param_combinations_third_order (Optional[list[str]]): The third-order parameter combinations.
-        MC_option (str): The option for Monte Carlo (MC) method.
+
     Methods:
         __init__(self, simulator: utils.simulator, distribution: utils.distribution, data: Optional[tuple[pd.DataFrame, pd.DataFrame]] = None, **kwargs: Union[int, str, NDArray, None]) -> None:
             Initializes the time_dependent_sensitivity_analysis object.
@@ -147,10 +144,6 @@ class time_dependent_sensitivity_analysis:
         self._param_combinations_second_order = None
         self._param_combinations_third_order = None
 
-        # TODO: remove together with MC method
-        # random, halton, latin_hypercube, sobol, etc.
-        self.MC_option = kwargs.get("MC_option", "random")
-
     def sample_params_and_run_simulator(
         self,
         num_samples: int,
@@ -159,11 +152,11 @@ class time_dependent_sensitivity_analysis:
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
         Samples parameters and runs the simulator.
-        
+
         Options:
             - num_samples: number of parameter samples
             - sampling_method: 'random', 'quasirandom', 'quadrature'
-            
+
         kwargs:
             - quasirandom_method: 'halton', 'sobol', 'latin_hypercube' (default is 'halton')
             - quadrature_method: 'clenshaw_curtis', 'gaussian', 'legendre' (default is 'clenshaw_curtis')
@@ -245,8 +238,6 @@ class time_dependent_sensitivity_analysis:
                 "No data available. Please run sample_params_and_run_simulator() first. \n"
             )
 
-        # TODO: read out kwargs that are currently in constructor method
-
         if method == "KL":
             self._KL_analysis(self.params.to_numpy(), self.outputs.to_numpy(), **kwargs)
         elif method == "PCE":
@@ -263,9 +254,8 @@ class time_dependent_sensitivity_analysis:
     def _KL_analysis(
         self, params: NDArray, output: NDArray, **kwargs: Union[int, str]
     ) -> None:
-        """A method that performs TD-GSA using a Karhunen-Loève expansion.
-        """
-        
+        """A method that performs TD-GSA using a Karhunen-Loève expansion."""
+
         # Center the output and interpolate to quadrature nodes
         mean = np.mean(output, axis=0)
         output_centered = np.array([out - mean for out in output])
@@ -470,9 +460,8 @@ class time_dependent_sensitivity_analysis:
     def _PCE_analysis(
         self, params: NDArray, output: NDArray, **kwargs: Union[int, str]
     ) -> None:
-        """A method that performs TD-GSA using Polynomial Chaos Expansion surrogate models.
-        """
-        
+        """A method that performs TD-GSA using Polynomial Chaos Expansion surrogate models."""
+
         # Construct pointwise-in-time PCEs
         timesteps_solver = self.timesteps_solver
         self._num_timesteps_quadrature = kwargs.get("num_timesteps_quadrature", 100)
@@ -632,11 +621,11 @@ class time_dependent_sensitivity_analysis:
         self, method: str
     ) -> tuple[pd.DataFrame, list[str]]:
         """A method that computes second order Sobol' indices.
-        
+
         Options:
             - method: 'KL', 'PCE'
         """
-        
+
         if self._PCE_coeffs is {}:
             raise ValueError(
                 "No polynomial coefficients available. Please run compute_sobol_indices() first.\n"
@@ -774,11 +763,11 @@ class time_dependent_sensitivity_analysis:
         self, method: str
     ) -> tuple[pd.DataFrame, list[str]]:
         """A method that computes third order Sobol' indices.
-        
+
         Options:
             - method: 'KL', 'PCE'
         """
-        
+
         if self._PCE_coeffs is {}:
             raise ValueError(
                 "No polynomial coefficients available. Please run compute_sobol_indices() first.\n"
@@ -952,7 +941,7 @@ class time_dependent_sensitivity_analysis:
 
     def plot(self, plot_option: str) -> None:
         """A method that plots the results of the time-dependent sensitivity analysis.
-        
+
         Options for plot_option:
             - 'sobol_indices': bar plot of the generalized Sobol' indices
             - 'time_dependent_sobol_indices': line plot of the time-dependent generalized Sobol' indices
@@ -962,7 +951,7 @@ class time_dependent_sensitivity_analysis:
             - 'covariance_matrix': heatmap of the covariance matrix
             - 'eigenvalue_spectrum': scatter plot of the eigenvalue spectrum
         """
-        
+
         if plot_option == "sobol_indices":
             self._plot_sobol_indices()
         elif plot_option == "time_dependent_sobol_indices":
@@ -984,7 +973,7 @@ class time_dependent_sensitivity_analysis:
 
     def _plot_sobol_indices(self) -> None:
         """A method that plots the generalized Sobol' indices."""
-        
+
         if self.sobol_indices == {}:
             raise ValueError(
                 "No Sobol' indices available. Please run compute_sobol_indices() first.\n"
@@ -1024,7 +1013,7 @@ class time_dependent_sensitivity_analysis:
 
     def _plot_time_dependent_sobol_indices(self) -> None:
         """A method that plots the time-evolution of the generalized Sobol' indices."""
-        
+
         timesteps_quadrature = np.linspace(
             self.timesteps_solver[0],
             self.timesteps_solver[-1],
@@ -1058,7 +1047,7 @@ class time_dependent_sensitivity_analysis:
 
     def _plot_higher_order_sobol_indices(self) -> None:
         """A method that plots the second and third order Sobol' indices."""
-        
+
         plot_list = [
             key in self.higher_order_sobol_indices
             for key in ["second_KL", "second_PCE", "third_KL", "third_PCE"]
@@ -1130,7 +1119,7 @@ class time_dependent_sensitivity_analysis:
 
     def _plot_simulator_output(self) -> None:
         """A method that plots the mean and standard deviation of the simulator output."""
-        
+
         if self.outputs is None:
             raise ValueError("No simulator outputs available.")
 
@@ -1153,7 +1142,7 @@ class time_dependent_sensitivity_analysis:
 
     def _plot_sampled_params(self) -> None:
         """A method that plots histograms of the sampled parameters."""
-        
+
         def plot_hist(ax, data, param_name, num_bins=50):
             sns.histplot(data, bins=num_bins, ax=ax)
             ax.set_xlabel(param_name)
@@ -1178,7 +1167,7 @@ class time_dependent_sensitivity_analysis:
 
     def _plot_covariance_matrix(self) -> None:
         """A method that plots the covariance matrix of the KL method."""
-        
+
         if self._covariance_matrix is None:
             raise ValueError(
                 "No covariance matrix available. Please run the KL method first.\n"
@@ -1189,7 +1178,7 @@ class time_dependent_sensitivity_analysis:
 
     def _plot_eigenvalue_spectrum(self) -> None:
         """A method that plots the eigenvalue spectrum to check spectral decay in the KL method."""
-        
+
         if self._sorted_eigenvalues_normed is None:
             raise ValueError(
                 "No eigenvalues available. Please run the KL method first.\n"

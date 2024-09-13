@@ -3,6 +3,7 @@
 from TDGSA import simulator, distribution
 import numpy as np
 
+
 def test_distribution():
     dist_dict = {
         "param1": ("normal", [0, 1]),
@@ -16,12 +17,14 @@ def test_distribution():
     assert dist.param_ranges == [[0, 1], [0, 1], [0, 1], [0, 1]]
     assert dist.dist_dict == dist_dict
     assert dist.dist.sample(10).shape == (4, 10)
-    assert dist.dist.sample(10)[1,:].min() >= 0
-    assert dist.dist.sample(10)[1,:].max() <= 1
-    
+    assert dist.dist.sample(10)[1, :].min() >= 0
+    assert dist.dist.sample(10)[1, :].max() <= 1
+
+
 def test_simulator():
     def model(params):
         return np.array(params)
+
     dist_dict = {
         "param1": ("normal", [0, 1]),
         "param2": ("uniform", [0, 1]),

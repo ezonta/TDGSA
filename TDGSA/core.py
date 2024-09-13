@@ -8,7 +8,7 @@ import chaospy as cp
 import multiprocessing
 from joblib import Parallel, delayed
 from sklearn import linear_model
-import utils
+from . import utils
 from typing import Callable, Optional, Union, Dict
 from numpy.typing import NDArray
 from tqdm.autonotebook import tqdm

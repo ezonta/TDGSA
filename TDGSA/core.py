@@ -1145,7 +1145,7 @@ class time_dependent_sensitivity_analysis:
         """A method that plots histograms of the sampled parameters."""
 
         def plot_hist(ax, data, param_name, num_bins=50):
-            sns.histplot(data, bins=num_bins, ax=ax)
+            sns.histplot(data, bins=num_bins, ax=ax, edgecolor="k", linewidth=0.5)
             ax.set_xlabel(param_name)
 
         def plot_log_hist(ax, data, param_name, num_bins=50):

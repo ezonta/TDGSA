@@ -111,14 +111,15 @@ class time_dependent_sensitivity_analysis:
             self.outputs = data[1]
             self._PCE_option = kwargs.get("PCE_option", "regression")
             self._PCE_quad_weights = kwargs.get("PCE_quad_weights", None)
+            self.num_samples = self.params.shape[0]
         else:
             self.params = None
             self.outputs = None
             self._PCE_option = None
             self._PCE_quad_weights = None
+            self.num_samples = None
 
         self.param_names = self.distribution.param_names
-        self.num_samples = None
         self.num_params = self.distribution.dim
         self.timesteps_solver = self.simulator.time
 

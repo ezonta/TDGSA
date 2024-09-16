@@ -1,24 +1,33 @@
 #!/usr/bin/env python3
 
-import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
-import pandas as pd
 import chaospy as cp
 import multiprocessing
 from joblib import Parallel, delayed
+from typing import Callable, Dict
+from numpy.typing import NDArray
+from tqdm.autonotebook import tqdm
 
 
 class distribution:
-    """A class that acts as a wrapper for a chaospy distribution"""
+    """A wrapper for the distribution class from chaospy. Is initialized with a dictionary of parameter names and their respective distributions.
 
-    def __init__(self, dist_dict):
-        """Constructor method
+    Example of dist_dict:
+    dist_dict = {
+        "param1": ("normal", [0, 1]),
+        "param2": ("uniform", [0, 1]),
+        "param3": ("lognormal", [0, 1]),
+        "param4": ("loguniform", [0, 1]),
+    }
+    """
 
-        Args:
-            dist_dict (dict): Dict that defines the distribution of each parameter (e.g. {'alpha':['uniform', [0, 1]], 'beta':['normal': [0, 1]]}),
-            where the numbers define upper and lower bounds for the uniform distribution and mean and standard deviation for the normal distribution.
-        """
+    dist: cp.J
+    dim: int
+    param_names: list[str]
+    param_ranges: list[list[float]]
+    dist_dict: Dict[str, tuple[str, list[float]]]
+
+    def __init__(self, dist_dict: Dict[str, tuple[str, list[float]]]) -> None:
         dist_list = []
         param_names = []
         param_ranges = []
@@ -38,94 +47,44 @@ class distribution:
                 dist_list.append(cp.LogNormal(*dist_params))
             else:
                 raise ValueError(
-                    f"Unknown distribution type: {dist_type}. Please choose from normal, uniform, lognormal, or loguniform.\n"
+                    f"Unknown distribution type: {dist_type}. Please choose from 'normal', 'uniform', 'lognormal', or 'loguniform'.\n"
                 )
 
         self.dist = cp.J(*dist_list)
         self.dim = len(dist_list)
         self.param_names = param_names
         self.param_ranges = param_ranges
-        self.num_samples = None
+        self.dist_dict = dist_dict
 
-    def sample(self, num_samples=1):
-        """A method that samples from the distribution"""
-        samples = np.array(self.dist.sample(num_samples)).T
+    def sample(self, num_samples: int, rule: str = "random") -> NDArray:
+        """Sample the distribution using the specified rule.
+
+        Options:
+            - num_samples: Number of samples to draw from the distribution.
+            - rule: 'random', 'halton', 'sobol', or 'latin_hypercube' (default: 'random').
+        """
+
+        samples = np.array(self.dist.sample(num_samples, rule=rule)).T
         return samples
 
 
 class simulator:
-    """A class that acts as a wrapper for the model of interest.
+    """A wrapper for the model of interest. Is initialized with a model function and a time vector that holds the timesteps of the solver."""
 
-    Args:
-        model (callable): The model for sensitivity analysis, which should return the time series of interest.
-        dist (distribution): The distribution from which parameters are sampled.
-        data (array, optional): An array of parameters and time-dependent output, if pre-existing.
-    """
+    model: Callable[[NDArray], NDArray]
+    time: NDArray
 
-    def __init__(self, model, dist, timesteps_solver, data=None, parallel=True):
+    def __init__(
+        self, model: Callable[[NDArray], NDArray], timesteps_solver: NDArray
+    ) -> None:
         self.model = model
-        self.dist = dist
         self.time = timesteps_solver
-        self.parallel = parallel
-        
-        self.num_samples = None
-        self.data = data  # params and output as np.array
-        self.params = None  # params as pd.dataframe (columns are param names)
-        self.output = None  # output as pd.dataframe (columns are time steps)
 
-    def generate_params(self, num_samples=1):
-        """A method that samples from the given distribution.
-
-        Args:
-            size (int, optional): The number of samples to generate. Defaults to 1.
-
-        Returns:
-            array: An array of parameters.
-        """
-        self.num_samples = num_samples
-        params = self.dist.sample(num_samples)
-        self.params = pd.DataFrame(params, columns=self.dist.param_names)
-        return params
-
-    def generate_output(self, params):
-        """A method that calls the model with a set of parameters.
-
-        Args:
-            params (array): An array of parameters.
-
-        Returns:
-            output: An array of time-dependent output.
-        """
+    def run(self, params: NDArray) -> NDArray:
+        """docstring"""
         num_cores = multiprocessing.cpu_count()
-        if self.parallel:
-            output = Parallel(n_jobs=num_cores)(
-                delayed(self.model)(param) for param in params
-            )
-        else:
-            output = [self.model(param) for param in params]
-        output = np.array(output).reshape(params.shape[0], -1)
-        self.output = pd.DataFrame(output, columns=self.time)
-        self.data = [params, output]
-        return output
-
-    def plot_output(self):
-        """A method that plots the generated output of the simulator"""
-        if self.output is None:
-            raise ValueError("No output available. Please run the simulator first.\n")
-        else:
-            fig, ax = plt.subplots(2, 1, sharex=True)
-            for i in range(self.num_samples):
-                ax[0].plot(self.time, self.output.iloc[i])
-            ax[0].set_ylabel("Output")
-
-            ax[1].plot(self.time, self.output.mean())
-            ax[1].fill_between(
-                self.time,
-                self.output.mean() - self.output.std(),
-                self.output.mean() + self.output.std(),
-                alpha=0.3,
-            )
-            ax[1].set_xlabel("Time")
-            ax[1].set_ylabel("Output")
-            plt.tight_layout()
-            plt.show()
+        outputs = Parallel(n_jobs=num_cores)(
+            delayed(self.model)(param) for param in tqdm(params)
+        )
+        outputs = np.array(outputs).reshape(params.shape[0], -1)
+        return outputs

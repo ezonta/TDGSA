@@ -9,7 +9,7 @@ import multiprocessing
 from joblib import Parallel, delayed
 from sklearn import linear_model
 from . import utils
-from typing import Callable, Optional, Union, Dict
+from typing import Optional, Union, Dict
 from numpy.typing import NDArray
 from tqdm.autonotebook import tqdm
 
@@ -626,7 +626,7 @@ class time_dependent_sensitivity_analysis:
             - method: 'KL', 'PCE'
         """
 
-        if self._PCE_coeffs is {}:
+        if self._PCE_coeffs == {}:
             raise ValueError(
                 "No polynomial coefficients available. Please run compute_sobol_indices() first.\n"
             )
@@ -768,7 +768,7 @@ class time_dependent_sensitivity_analysis:
             - method: 'KL', 'PCE'
         """
 
-        if self._PCE_coeffs is {}:
+        if self._PCE_coeffs == {}:
             raise ValueError(
                 "No polynomial coefficients available. Please run compute_sobol_indices() first.\n"
             )
@@ -1020,7 +1020,7 @@ class time_dependent_sensitivity_analysis:
             self._num_timesteps_quadrature,
         )
 
-        if self.td_sobol_indices is {}:
+        if self.td_sobol_indices == {}:
             raise ValueError(
                 "No time-dependent Sobol' indices available. Please run the PCE method first.\n"
             )

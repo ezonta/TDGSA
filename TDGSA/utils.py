@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 
-import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
-import pandas as pd
 import chaospy as cp
 import multiprocessing
 from joblib import Parallel, delayed
-from typing import Callable, Optional, Union, Dict
+from typing import Callable, Dict
 from numpy.typing import NDArray
 from tqdm.autonotebook import tqdm
 

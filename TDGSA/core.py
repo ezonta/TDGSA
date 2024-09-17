@@ -233,6 +233,7 @@ class time_dependent_sensitivity_analysis:
             - KL_truncation_level: truncation level for the Karhunen-Loève expansion (default is 8)
             - PCE_order: order of the Polynomial Chaos Expansion (default is 4)
             - cross_truncation: cross truncation parameter for the PCE expansion (default is 1.0)
+            - regression_model: 'linear' or 'LARS' (default is 'linear')
         """
         if self.outputs is None:
             raise ValueError(
@@ -356,7 +357,17 @@ class time_dependent_sensitivity_analysis:
 
         num_cores = multiprocessing.cpu_count()
         if PCE_option == "regression":
-            model = linear_model.LinearRegression(fit_intercept=False)
+            regression_model = kwargs.get("regression_model", "linear")
+            if regression_model == "linear":
+                model = linear_model.LinearRegression(fit_intercept=False)
+            elif regression_model == "LARS":
+                model = linear_model.Lars(
+                    fit_intercept=False, n_nonzero_coefs=len(expansion.coefficients)
+                )
+            else:
+                raise ValueError(
+                    f"Unknown regression model: {regression_model}. Please choose from 'linear' or 'LARS'.\n"
+                )
             surrogate_models = Parallel(n_jobs=num_cores)(
                 delayed(cp.fit_regression)(
                     expansion,
@@ -494,6 +505,17 @@ class time_dependent_sensitivity_analysis:
 
         num_cores = multiprocessing.cpu_count()
         if PCE_option == "regression":
+            regression_model = kwargs.get("regression_model", "linear")
+            if regression_model == "linear":
+                model = linear_model.LinearRegression(fit_intercept=False)
+            elif regression_model == "LARS":
+                model = linear_model.Lars(
+                    fit_intercept=False, n_nonzero_coefs=len(expansion)
+                )
+            else:
+                raise ValueError(
+                    f"Unknown regression model: {regression_model}. Please choose from 'linear' or 'LARS'.\n"
+                )
             model = linear_model.LinearRegression(fit_intercept=False)
             surrogate_models_pointwise = Parallel(n_jobs=num_cores)(
                 delayed(cp.fit_regression)(

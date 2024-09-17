@@ -27,4 +27,4 @@ Contributions are welcome! Please follow these guidelines:
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [BSD-3-Clause License](LICENSE).

@@ -441,7 +441,7 @@ class time_dependent_sensitivity_analysis:
         # add a warning if the sum of eigenvalues and sum of squared PCE coefficients do not agree and use the sum of squared PCE coefficients as total variance
         sum_eigenvalues = np.sum(sorted_eigenvalues[:N_kl])
         sum_coefficients = np.sum(
-            [np.sum(surrogate_model_coeffs[j] ** 2) for j in range(N_kl)]
+            [np.sum(surrogate_model_coeffs[j][1:] ** 2) for j in range(N_kl)]
         )
         rel_error_variance = (
             np.abs(sum_eigenvalues - sum_coefficients) / sum_eigenvalues

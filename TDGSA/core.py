@@ -362,7 +362,7 @@ class time_dependent_sensitivity_analysis:
                 model = linear_model.LinearRegression(fit_intercept=False)
             elif regression_model == "LARS":
                 model = linear_model.Lars(
-                    fit_intercept=False, n_nonzero_coefs=len(expansion.coefficients)
+                    fit_intercept=False, n_nonzero_coefs=len(expansion)
                 )
             else:
                 raise ValueError(
@@ -407,34 +407,29 @@ class time_dependent_sensitivity_analysis:
 
         masks_total = []
         masks_first = []
-        for j in range(N_kl):
-            masks_total_temp = []
-            masks_first_temp = []
-            for i in range(self.num_params):
-                mask_total_temp = [
-                    1 if key[i] != 0 else 0 for key in surrogate_model_poly_dict.keys()
-                ]
-                masks_total_temp.append(mask_total_temp)
-                mask_first_temp = [
-                    1 if key[i] != 0 and key.count(0) == (len(key) - 1) else 0
-                    for key in surrogate_model_poly_dict.keys()
-                ]
-                masks_first_temp.append(mask_first_temp)
-            masks_total_temp = np.array(masks_total_temp)
-            masks_first_temp = np.array(masks_first_temp)
-            masks_total.append(masks_total_temp)
-            masks_first.append(masks_first_temp)
+        for i in range(self.num_params):
+            mask_total = [
+                1 if key[i] != 0 else 0 for key in surrogate_model_poly_dict.keys()
+            ]
+            masks_total.append(mask_total)
+            mask_first = [
+                1 if key[i] != 0 and key.count(0) == (len(key) - 1) else 0
+                for key in surrogate_model_poly_dict.keys()
+            ]
+            masks_first.append(mask_first)
+        masks_total = np.array(masks_total)
+        masks_first = np.array(masks_first)
 
         # assuming that ||q_k||^2 = 1 for all k when using normalized polynomials
         for i in range(self.num_params):
             for j in range(N_kl):
                 # sum all squared coefficients where the term does not contain q_j
                 sum_coeff_per_param_total[j, i] = np.sum(
-                    surrogate_model_coeffs[j] ** 2 * masks_total[j][i]
+                    surrogate_model_coeffs[j] ** 2 * masks_total[i]
                 )
                 # sum all squared coefficients where the term contains only q_j
                 sum_coeff_per_param_first[j, i] = np.sum(
-                    surrogate_model_coeffs[j] ** 2 * masks_first[j][i]
+                    surrogate_model_coeffs[j] ** 2 * masks_first[i]
                 )
 
         # check if sum of eigenvalues and squared sum of PCE coefficients agree on total variance
@@ -554,23 +549,18 @@ class time_dependent_sensitivity_analysis:
         # Generate masks to select coefficients for each parameter depending on occurence in expansion
         masks_total = []
         masks_first = []
-        for m in range(len(timesteps_quadrature)):
-            masks_total_temp = []
-            masks_first_temp = []
-            for i in range(self.num_params):
-                mask_total_temp = [
-                    1 if key[i] != 0 else 0 for key in polynomial_pointwise_dict.keys()
-                ]
-                masks_total_temp.append(mask_total_temp)
-                mask_first_temp = [
-                    1 if key[i] != 0 and key.count(0) == (len(key) - 1) else 0
-                    for key in polynomial_pointwise_dict.keys()
-                ]
-                masks_first_temp.append(mask_first_temp)
-            masks_total_temp = np.array(masks_total_temp)
-            masks_first_temp = np.array(masks_first_temp)
-            masks_total.append(masks_total_temp)
-            masks_first.append(masks_first_temp)
+        for i in range(self.num_params):
+            mask_total = [
+                1 if key[i] != 0 else 0 for key in polynomial_pointwise_dict.keys()
+            ]
+            mask_first = [
+                1 if key[i] != 0 and key.count(0) == (len(key) - 1) else 0
+                for key in polynomial_pointwise_dict.keys()
+            ]
+            masks_total.append(mask_total)
+            masks_first.append(mask_first)
+        masks_total = np.array(masks_total)
+        masks_first = np.array(masks_first)
 
         # Compute variances for each parameter at each time step
 
@@ -589,10 +579,10 @@ class time_dependent_sensitivity_analysis:
             for i in range(self.num_params):
 
                 variance_over_time_total[m, i] = np.sum(
-                    coeff_pointwise[m] ** 2 * masks_total[m][i]
+                    coeff_pointwise[m] ** 2 * masks_total[i]
                 )
                 variance_over_time_first[m, i] = np.sum(
-                    coeff_pointwise[m] ** 2 * masks_first[m][i]
+                    coeff_pointwise[m] ** 2 * masks_first[i]
                 )
 
         # Compute the generalized Sobol indices

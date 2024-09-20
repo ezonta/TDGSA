@@ -396,7 +396,7 @@ class time_dependent_sensitivity_analysis:
 
         surrogate_model_coeffs = [surrogate_models[i][1] for i in range(N_kl)]
         polynomial_pointwise = [surrogate_models[i][0] for i in range(N_kl)]
-        surrogate_model_poly_dict = polynomial_pointwise[0].todict()
+        surrogate_model_poly_dict = polynomial_pointwise[0][0].todict()
 
         # Compute the generalized Sobol indices
         self._polynomial_dict = surrogate_model_poly_dict
@@ -541,7 +541,7 @@ class time_dependent_sensitivity_analysis:
             surrogate_models_pointwise[i][0] for i in range(len(timesteps_quadrature))
         ]
         # save for later computation of second and third order sobol indices and PCE surrogate evaluation
-        polynomial_pointwise_dict = polynomial_pointwise[0].todict()
+        polynomial_pointwise_dict = polynomial_pointwise[0][0].todict()
         self._polynomial_dict = polynomial_pointwise_dict
         self._PCE_coeffs["PCE"] = coeff_pointwise
         self._polynomial_pointwise["PCE"] = polynomial_pointwise

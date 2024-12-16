@@ -37,15 +37,15 @@ def test_oscillator():
 
     sobol_indices_KL = my_tdsa.compute_sobol_indices("KL")
 
-    sobol_indices_PCE = my_tdsa.compute_sobol_indices("PCE")
+    sobol_indices_PC = my_tdsa.compute_sobol_indices("PC")
 
-    second_order, params = my_tdsa.compute_second_order_sobol_indices("PCE")
+    second_order, params = my_tdsa.compute_second_order_sobol_indices("PC")
     third_order, params = my_tdsa.compute_second_order_sobol_indices("KL")
-    third_order, params = my_tdsa.compute_third_order_sobol_indices("PCE")
+    third_order, params = my_tdsa.compute_third_order_sobol_indices("PC")
     second_order, params = my_tdsa.compute_third_order_sobol_indices("KL")
 
-    relative_error = np.abs(sobol_indices_KL - sobol_indices_PCE) / np.abs(
-        sobol_indices_PCE
+    relative_error = np.abs(sobol_indices_KL - sobol_indices_PC) / np.abs(
+        sobol_indices_PC
     )
     assert np.all(
         relative_error <= 0.20
@@ -54,13 +54,13 @@ def test_oscillator():
         sobol_indices_KL >= 0
     ), "Negative Sobol' indices computed with KL method"
     assert np.all(
-        sobol_indices_PCE >= 0
+        sobol_indices_PC >= 0
     ), "Negative Sobol' indices computed with PCE method"
     assert (
         sobol_indices_KL["total"][1] > sobol_indices_KL["total"][2]
         and sobol_indices_KL["total"][2] > sobol_indices_KL["total"][0]
     ), "Total-order Sobol' indices computed with KL method are not correctly ordered"
     assert (
-        sobol_indices_PCE["total"][1] > sobol_indices_PCE["total"][2]
-        and sobol_indices_PCE["total"][2] > sobol_indices_PCE["total"][0]
+        sobol_indices_PC["total"][1] > sobol_indices_PC["total"][2]
+        and sobol_indices_PC["total"][2] > sobol_indices_PC["total"][0]
     ), "Total-order Sobol' indices computed with PCE method are not correctly ordered"

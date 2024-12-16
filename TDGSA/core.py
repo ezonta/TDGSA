@@ -15,7 +15,7 @@ from tqdm.autonotebook import tqdm
 
 
 class time_dependent_sensitivity_analysis:
-    """A class that performs time-dependent sensitivity analysis using either the 'KL' or 'PCE' approach.
+    """A class that performs time-dependent sensitivity analysis using either the 'KL' or 'PC' approach.
 
     Attributes:
         simulator (utils.simulator): The simulator object used for running simulations.
@@ -30,8 +30,8 @@ class time_dependent_sensitivity_analysis:
         higher_order_sobol_indices (Dict[str, pd.DataFrame]): The computed higher-order Sobol indices.
         td_higher_order_sobol_indices (Dict[str, pd.DataFrame]): The computed time-dependent higher-order Sobol indices.
         _num_timesteps_quadrature (Optional[int]): The number of quadrature nodes in time.
-        _PCE_option (Optional[str]): The option for Polynomial Chaos Expansion (PCE) analysis.
-        _PCE_quad_weights (Optional[NDArray]): The quadrature weights for PCE analysis.
+        _PC_option (Optional[str]): The option for Polynomial Chaos (PC) expansion analysis.
+        _PC_quad_weights (Optional[NDArray]): The quadrature weights for PC analysis.
         _KL_truncation_level (Optional[int]): The truncation level for Karhunen-Loève (KL) expansion.
         _covariance_matrix (Optional[NDArray]): The covariance matrix used in KL analysis.
         _sorted_eigenvalues (Optional[NDArray]): The sorted eigenvalues from KL analysis.
@@ -39,9 +39,9 @@ class time_dependent_sensitivity_analysis:
         _sorted_eigenvalues_normed (Optional[NDArray]): The normalized sorted eigenvalues from KL analysis.
         _r_Nkl (Optional[NDArray]): The variance ratio from KL analysis.
         _KL_mean (Optional[NDArray]): The mean value used in KL analysis.
-        _polynomial_dict (Optional[Dict]): The polynomial dictionary used in PCE analysis.
-        _PCE_coeffs (Dict[str, list[NDArray]]): The PCE coefficients from PCE analysis.
-        _polynomial_pointwise (Dict[str, Optional[list[cp.ndpoly]]]): The pointwise polynomials from PCE analysis.
+        _polynomial_dict (Optional[Dict]): The polynomial dictionary used in PC analysis.
+        _PC_coeffs (Dict[str, list[NDArray]]): The PC coefficients from PC analysis.
+        _polynomial_pointwise (Dict[str, Optional[list[cp.ndpoly]]]): The pointwise polynomials from PC analysis.
         _param_combinations_second_order (Optional[list[str]]): The second-order parameter combinations.
         _param_combinations_third_order (Optional[list[str]]): The third-order parameter combinations.
 
@@ -54,8 +54,8 @@ class time_dependent_sensitivity_analysis:
             Runs the time-dependent sensitivity analysis and returns the generalized Sobol indices.
         _KL_analysis(self, params: NDArray, output: NDArray, **kwargs: Union[int, str]) -> None:
             Performs time-dependent sensitivity analysis using Karhunen-Loève (KL) expansion.
-        _PCE_analysis(self, params: NDArray, output: NDArray, **kwargs: Union[int, str]) -> None:
-            Performs time-dependent sensitivity analysis using Polynomial Chaos Expansion (PCE).
+        _PC_analysis(self, params: NDArray, output: NDArray, **kwargs: Union[int, str]) -> None:
+            Performs time-dependent sensitivity analysis using Polynomial Chaos Expansion (PC).
     """
 
     # public
@@ -140,7 +140,7 @@ class time_dependent_sensitivity_analysis:
 
         self._polynomial_dict = None
         self._PCE_coeffs = {}
-        self._polynomial_pointwise = {"PCE": None, "KL": None}
+        self._polynomial_pointwise = {"PC": None, "KL": None}
 
         self._param_combinations_second_order = None
         self._param_combinations_third_order = None
@@ -226,14 +226,14 @@ class time_dependent_sensitivity_analysis:
         """A method that runs the time-dependent sensitivity analysis and returns the generalized sobol indices.
 
         Options:
-            - method: 'KL', 'PCE'
+            - method: 'KL', 'PC'
 
         kwargs:
             - num_timesteps_quadrature: number of quadrature nodes in time (default is 100)
             - KL_truncation_level: truncation level for the Karhunen-Loève expansion (default is 8)
             - PCE_order: order of the Polynomial Chaos Expansion (default is 4)
-            - cross_truncation: cross truncation parameter for the PCE expansion (default is 1.0)
-            - regression_model: 'linear' or 'LARS' (default is 'linear')
+            - cross_truncation: cross truncation parameter for the PC expansion (default is 1.0)
+            - regression_model: 'OLS' or 'LARS' (default is 'OLS')
         """
         if self.outputs is None:
             raise ValueError(
@@ -242,13 +242,13 @@ class time_dependent_sensitivity_analysis:
 
         if method == "KL":
             self._KL_analysis(self.params.to_numpy(), self.outputs.to_numpy(), **kwargs)
-        elif method == "PCE":
-            self._PCE_analysis(
+        elif method == "PC":
+            self._PC_analysis(
                 self.params.to_numpy(), self.outputs.to_numpy(), **kwargs
             )
         else:
             raise ValueError(
-                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL'), Polynomial Chaos Expansion ('PCE'), or Monte Carlo ('MC').\n"
+                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos ('PC').\n"
             )
 
         return self.sobol_indices[method]
@@ -340,7 +340,7 @@ class time_dependent_sensitivity_analysis:
         PCE_option = self._PCE_option
         joint_dist = self.distribution.dist
 
-        print("Generating PCE expansion ...\n")
+        print("Generating PC expansion ...\n")
 
         cross_truncation = kwargs.get("cross_truncation", 1.0)
 
@@ -357,8 +357,8 @@ class time_dependent_sensitivity_analysis:
 
         num_cores = multiprocessing.cpu_count()
         if PCE_option == "regression":
-            regression_model = kwargs.get("regression_model", "linear")
-            if regression_model == "linear":
+            regression_model = kwargs.get("regression_model", "OLS")
+            if regression_model == "OLS":
                 model = linear_model.LinearRegression(fit_intercept=False)
             elif regression_model == "LARS":
                 model = linear_model.Lars(
@@ -366,7 +366,7 @@ class time_dependent_sensitivity_analysis:
                 )
             else:
                 raise ValueError(
-                    f"Unknown regression model: {regression_model}. Please choose from 'linear' or 'LARS'.\n"
+                    f"Unknown regression model: {regression_model}. Please choose from 'OLS' or 'LARS'.\n"
                 )
             surrogate_models = Parallel(n_jobs=num_cores)(
                 delayed(cp.fit_regression)(
@@ -432,8 +432,8 @@ class time_dependent_sensitivity_analysis:
                     surrogate_model_coeffs[j] ** 2 * masks_first[i]
                 )
 
-        # check if sum of eigenvalues and squared sum of PCE coefficients agree on total variance
-        # add a warning if the sum of eigenvalues and sum of squared PCE coefficients do not agree and use the sum of squared PCE coefficients as total variance
+        # check if sum of eigenvalues and squared sum of PC coefficients agree on total variance
+        # add a warning if the sum of eigenvalues and sum of squared PC coefficients do not agree and use the sum of squared PC coefficients as total variance
         sum_eigenvalues = np.sum(sorted_eigenvalues[:N_kl])
         sum_coefficients = np.sum(
             [np.sum(surrogate_model_coeffs[j][1:] ** 2) for j in range(N_kl)]
@@ -445,7 +445,7 @@ class time_dependent_sensitivity_analysis:
         if rel_error_variance > 0.1:
             denum = sum_coefficients
             print(
-                f"WARNING: The relative error between the sum of eigenvalues and the sum of squared PCE coefficients is larger than 10%: {rel_error_variance:.2f}. The sum of squared PCE coefficients will be used as total variance to compute the Sobol' indices. \n"
+                f"WARNING: The relative error between the sum of eigenvalues and the sum of squared PC coefficients is larger than 10%: {rel_error_variance:.2f}. The sum of squared PC coefficients will be used as total variance to compute the Sobol' indices. \n"
             )
         else:
             denum = sum_eigenvalues
@@ -464,7 +464,7 @@ class time_dependent_sensitivity_analysis:
         )
         self.sobol_indices["KL"] = sobol_indices
 
-    def _PCE_analysis(
+    def _PC_analysis(
         self, params: NDArray, output: NDArray, **kwargs: Union[int, str]
     ) -> None:
         """A method that performs TD-GSA using Polynomial Chaos Expansion surrogate models."""
@@ -483,7 +483,7 @@ class time_dependent_sensitivity_analysis:
         PCE_option = self._PCE_option
         joint_dist = self.distribution.dist
 
-        print("Generating PCE expansion ...\n")
+        print("Generating PC expansion ...\n")
 
         cross_truncation = kwargs.get("cross_truncation", 1.0)
 
@@ -500,8 +500,8 @@ class time_dependent_sensitivity_analysis:
 
         num_cores = multiprocessing.cpu_count()
         if PCE_option == "regression":
-            regression_model = kwargs.get("regression_model", "linear")
-            if regression_model == "linear":
+            regression_model = kwargs.get("regression_model", "OLS")
+            if regression_model == "OLS":
                 model = linear_model.LinearRegression(fit_intercept=False)
             elif regression_model == "LARS":
                 model = linear_model.Lars(
@@ -509,7 +509,7 @@ class time_dependent_sensitivity_analysis:
                 )
             else:
                 raise ValueError(
-                    f"Unknown regression model: {regression_model}. Please choose from 'linear' or 'LARS'.\n"
+                    f"Unknown regression model: {regression_model}. Please choose from 'OLS' or 'LARS'.\n"
                 )
             model = linear_model.LinearRegression(fit_intercept=False)
             surrogate_models_pointwise = Parallel(n_jobs=num_cores)(
@@ -540,11 +540,11 @@ class time_dependent_sensitivity_analysis:
         polynomial_pointwise = [
             surrogate_models_pointwise[i][0] for i in range(len(timesteps_quadrature))
         ]
-        # save for later computation of second and third order sobol indices and PCE surrogate evaluation
+        # save for later computation of second and third order sobol indices and PC surrogate evaluation
         polynomial_pointwise_dict = expansion.todict()
         self._polynomial_dict = polynomial_pointwise_dict
-        self._PCE_coeffs["PCE"] = coeff_pointwise
-        self._polynomial_pointwise["PCE"] = polynomial_pointwise
+        self._PCE_coeffs["PC"] = coeff_pointwise
+        self._polynomial_pointwise["PC"] = polynomial_pointwise
 
         # Generate masks to select coefficients for each parameter depending on occurence in expansion
         masks_total = []
@@ -619,7 +619,7 @@ class time_dependent_sensitivity_analysis:
         sobol_indices = pd.DataFrame(
             sobol_indices, columns=["first", "total"], index=self.param_names
         )
-        self.sobol_indices["PCE"] = sobol_indices
+        self.sobol_indices["PC"] = sobol_indices
 
         td_sobol_indices_total = pd.DataFrame(
             td_sobol_indices_total, columns=self.param_names, index=timesteps_quadrature
@@ -636,7 +636,7 @@ class time_dependent_sensitivity_analysis:
         """A method that computes second order Sobol' indices.
 
         Options:
-            - method: 'KL', 'PCE'
+            - method: 'KL', 'PC'
         """
 
         if self._PCE_coeffs == {}:
@@ -677,7 +677,7 @@ class time_dependent_sensitivity_analysis:
 
         coeffs = self._PCE_coeffs[method]
 
-        if method == "PCE":
+        if method == "PC":
 
             variance_over_time_second = np.zeros(
                 (len(timesteps_quadrature), len(param_combinations)), dtype=np.double
@@ -734,8 +734,8 @@ class time_dependent_sensitivity_analysis:
                 columns=param_combinations,
                 index=timesteps_quadrature,
             )
-            self.higher_order_sobol_indices["second_PCE"] = sobol_indices_second
-            self.td_higher_order_sobol_indices["second_PCE"] = td_sobol_indices_second
+            self.higher_order_sobol_indices["second_PC"] = sobol_indices_second
+            self.td_higher_order_sobol_indices["second_PC"] = td_sobol_indices_second
             self._param_combinations_second_order = param_combinations
 
         elif method == "KL":
@@ -766,7 +766,7 @@ class time_dependent_sensitivity_analysis:
 
         else:
             raise ValueError(
-                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PCE').\n"
+                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PC').\n"
             )
 
         key = "second_" + method
@@ -778,7 +778,7 @@ class time_dependent_sensitivity_analysis:
         """A method that computes third order Sobol' indices.
 
         Options:
-            - method: 'KL', 'PCE'
+            - method: 'KL', 'PC'
         """
 
         if self._PCE_coeffs == {}:
@@ -825,7 +825,7 @@ class time_dependent_sensitivity_analysis:
 
         coeffs = self._PCE_coeffs[method]
 
-        if method == "PCE":
+        if method == "PC":
 
             variance_over_time_third = np.zeros(
                 (len(timesteps_quadrature), len(param_combinations)), dtype=np.double
@@ -882,8 +882,8 @@ class time_dependent_sensitivity_analysis:
                 columns=param_combinations,
                 index=timesteps_quadrature,
             )
-            self.higher_order_sobol_indices["third_PCE"] = sobol_indices_third
-            self.td_higher_order_sobol_indices["third_PCE"] = td_sobol_indices_third
+            self.higher_order_sobol_indices["third_PC"] = sobol_indices_third
+            self.td_higher_order_sobol_indices["third_PC"] = td_sobol_indices_third
             self._param_combinations_third_order = param_combinations
 
         elif method == "KL":
@@ -914,20 +914,20 @@ class time_dependent_sensitivity_analysis:
 
         else:
             raise ValueError(
-                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PCE').\n"
+                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PC').\n"
             )
 
         key = "third_" + method
         return (self.higher_order_sobol_indices[key], param_combinations)
 
     def evaluate_surrogate_model(self, param: NDArray, method: str) -> NDArray:
-        if method == "PCE":
-            if self._polynomial_pointwise["PCE"] is None:
+        if method == "PC":
+            if self._polynomial_pointwise["PC"] is None:
                 raise ValueError(
-                    "No PCE surrogate model available. Please run the PCE method first.\n"
+                    "No PC surrogate model available. Please run the PC method first.\n"
                 )
             result = [
-                cp.call(self._polynomial_pointwise["PCE"][m], param)
+                cp.call(self._polynomial_pointwise["PC"][m], param)
                 for m in range(self._num_timesteps_quadrature)
             ]
         elif method == "KL":
@@ -948,7 +948,7 @@ class time_dependent_sensitivity_analysis:
             ]
         else:
             raise ValueError(
-                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PCE').\n"
+                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PC').\n"
             )
         return np.array(result)
 
@@ -1035,7 +1035,7 @@ class time_dependent_sensitivity_analysis:
 
         if self.td_sobol_indices == {}:
             raise ValueError(
-                "No time-dependent Sobol' indices available. Please run the PCE method first.\n"
+                "No time-dependent Sobol' indices available. Please run the PC method first.\n"
             )
 
         fig, ax = plt.subplots(2, 1, sharex=True)
@@ -1063,7 +1063,7 @@ class time_dependent_sensitivity_analysis:
 
         plot_list = [
             key in self.higher_order_sobol_indices
-            for key in ["second_KL", "second_PCE", "third_KL", "third_PCE"]
+            for key in ["second_KL", "second_PC", "third_KL", "third_PC"]
         ]
         num_plots = sum(plot_list)
 
@@ -1094,15 +1094,15 @@ class time_dependent_sensitivity_analysis:
             ax[0, 0].set_title("Second order KL")
         else:
             ax[0, 0].remove()
-        if "second_PCE" in self.higher_order_sobol_indices:
+        if "second_PC" in self.higher_order_sobol_indices:
             ax[0, 1].barh(
                 x_second,
-                self.higher_order_sobol_indices["second_PCE"].to_numpy().reshape(-1),
+                self.higher_order_sobol_indices["second_PC"].to_numpy().reshape(-1),
                 height=0.1,
             )
             ax[0, 1].set_xlabel("Generalized second order Sobol' index")
             ax[0, 1].set_yticks(x_second, self._param_combinations_second_order)
-            ax[0, 1].set_title("Second order PCE")
+            ax[0, 1].set_title("Second order PC")
         else:
             ax[0, 1].remove()
         if "third_KL" in self.higher_order_sobol_indices:
@@ -1116,15 +1116,15 @@ class time_dependent_sensitivity_analysis:
             ax[1, 0].set_title("Third order KL")
         else:
             ax[1, 0].remove()
-        if "third_PCE" in self.higher_order_sobol_indices:
+        if "third_PC" in self.higher_order_sobol_indices:
             ax[1, 1].barh(
                 x_third,
-                self.higher_order_sobol_indices["third_PCE"].to_numpy().reshape(-1),
+                self.higher_order_sobol_indices["third_PC"].to_numpy().reshape(-1),
                 height=0.1,
             )
             ax[1, 1].set_xlabel("Generalized third order Sobol' index")
             ax[1, 1].set_yticks(x_third, self._param_combinations_third_order)
-            ax[1, 1].set_title("Third order PCE")
+            ax[1, 1].set_title("Third order PC")
         else:
             ax[1, 1].remove()
         plt.tight_layout()

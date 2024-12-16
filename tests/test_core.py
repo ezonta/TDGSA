@@ -43,9 +43,9 @@ def test_time_dependent_sensitivity_analysis():
 
     # Test compute_sobol_indices with PCE method
     tdsa.compute_sobol_indices(
-        method="PCE", PCE_order=3, num_timesteps_quadrature=num_timesteps_quadrature
+        method="PC", PCE_order=3, num_timesteps_quadrature=num_timesteps_quadrature
     )
-    assert "PCE" in tdsa.sobol_indices
+    assert "PC" in tdsa.sobol_indices
 
     # Test compute_sobol_indices with KL method
     tdsa.compute_sobol_indices(
@@ -57,7 +57,7 @@ def test_time_dependent_sensitivity_analysis():
 
     # Test evaluate_surrogate_model
     sample_param = np.array([0.5, 0.5, 0.5, 0.5])
-    surrogate_output = tdsa.evaluate_surrogate_model(sample_param, method="PCE")
+    surrogate_output = tdsa.evaluate_surrogate_model(sample_param, method="PC")
     assert surrogate_output.shape == (num_timesteps_quadrature,)
 
     # Test ValueError for invalid sampling method
@@ -71,7 +71,7 @@ def test_time_dependent_sensitivity_analysis():
         sim, dist, num_timesteps_quadrature=num_timesteps_quadrature
     )
     with pytest.raises(ValueError):
-        tdsa_no_data.compute_sobol_indices(method="PCE")
+        tdsa_no_data.compute_sobol_indices(method="PC")
 
     # Test ValueError for invalid method in compute_sobol_indices
     with pytest.raises(ValueError):
@@ -79,8 +79,8 @@ def test_time_dependent_sensitivity_analysis():
 
     # Test ValueError for compute_second_order_sobol_indices without PCE coefficients and quadrature timesteps
     with pytest.raises(ValueError):
-        tdsa_no_data.compute_second_order_sobol_indices(method="PCE")
+        tdsa_no_data.compute_second_order_sobol_indices(method="PC")
 
     # Test ValueError for compute_third_order_sobol_indices without PCE coefficients and quadrature timesteps
     with pytest.raises(ValueError):
-        tdsa_no_data.compute_third_order_sobol_indices(method="PCE")
+        tdsa_no_data.compute_third_order_sobol_indices(method="PC")

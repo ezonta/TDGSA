@@ -511,7 +511,6 @@ class time_dependent_sensitivity_analysis:
                 raise ValueError(
                     f"Unknown regression model: {regression_model}. Please choose from 'OLS' or 'LARS'.\n"
                 )
-            model = linear_model.LinearRegression(fit_intercept=False)
             surrogate_models_pointwise = Parallel(n_jobs=num_cores)(
                 delayed(cp.fit_regression)(
                     expansion,

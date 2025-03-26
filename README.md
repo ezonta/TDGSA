@@ -5,6 +5,7 @@
 This project aims to provide an easy to use implementation of time-dependent global sensitivity analysis algorithms based on the work of Alexanderian et al. [1]. Please also consider citing our working paper when using this package [2].
 
 [1] Alexanderian, A.; Gremaud, P. A.; Smith, R. C. Variance-Based Sensitivity Analysis for Time-Dependent Processes. Reliability Engineering & System Safety 2020, 196, 106722. https://doi.org/10.1016/j.ress.2019.106722.
+
 [2] https://arxiv.org/abs/2502.17275
 
 

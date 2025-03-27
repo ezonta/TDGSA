@@ -12,6 +12,11 @@ from . import utils
 from typing import Optional, Union, Dict
 from numpy.typing import NDArray
 from tqdm.autonotebook import tqdm
+import logging
+
+# for logging purposes
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename="sensitivity.log", encoding="utf-8", level=logging.INFO)
 
 
 class time_dependent_sensitivity_analysis:
@@ -69,6 +74,8 @@ class time_dependent_sensitivity_analysis:
     num_samples: Optional[int]
     timesteps_solver: NDArray
 
+    failed_simulations: Optional[pd.DataFrame]
+
     sobol_indices: Dict[str, pd.DataFrame]
     td_sobol_indices: Dict[str, pd.DataFrame]
     higher_order_sobol_indices: Dict[str, pd.DataFrame]
@@ -123,6 +130,8 @@ class time_dependent_sensitivity_analysis:
         self.num_params = self.distribution.dim
         self.timesteps_solver = self.simulator.time
 
+        self.failed_simulations = None
+
         self.sobol_indices = {}
         self.td_sobol_indices = {}
         self.higher_order_sobol_indices = {}
@@ -165,7 +174,7 @@ class time_dependent_sensitivity_analysis:
         """
 
         ## sampling of parameters
-        print("Sampling parameters ...\n")
+        logger.info(f"Sampling {num_samples} parameters ...")
 
         if sampling_method == "random":
             samples = self.distribution.sample(num_samples=num_samples, rule="random")
@@ -178,9 +187,11 @@ class time_dependent_sensitivity_analysis:
                 and quasirandom_rule != "sobol"
                 and quasirandom_rule != "latin_hypercube"
             ):
-                raise ValueError(
-                    f"Unknown quasirandom method: {quasirandom_rule}. Please choose from 'halton', 'sobol', or 'latin_hypercube'.\n"
+                error = ValueError(
+                    f"Unknown quasirandom method: {quasirandom_rule}. Please choose from 'halton', 'sobol', or 'latin_hypercube'."
                 )
+                logger.error(error)
+                raise error
             samples = self.distribution.sample(
                 num_samples=num_samples, rule=quasirandom_rule
             )
@@ -194,9 +205,11 @@ class time_dependent_sensitivity_analysis:
                 and quadrature_rule != "gaussian"
                 and quadrature_rule != "legendre"
             ):
-                raise ValueError(
-                    f"Unknown quadrature method: {quadrature_rule}. Please choose from 'clenshaw_curtis', 'gaussian', or 'legendre'.\n"
+                error = ValueError(
+                    f"Unknown quadrature method: {quadrature_rule}. Please choose from 'clenshaw_curtis', 'gaussian', or 'legendre'."
                 )
+                logger.error(error)
+                raise error
             samples, weights = cp.generate_quadrature(
                 quadrature_order, self.distribution.dist, rule=quadrature_rule
             )
@@ -204,17 +217,46 @@ class time_dependent_sensitivity_analysis:
             self._PCE_quad_weights = weights
 
         else:
-            raise ValueError(
-                f"Unknown sampling method: {sampling_method}. Please choose from 'random', 'quasirandom', or 'quadrature'.\n"
+            error = ValueError(
+                f"Unknown sampling method: {sampling_method}. Please choose from 'random', 'quasirandom', or 'quadrature'."
             )
+            logger.error(error)
+            raise error
 
         ## run simulator and get outputs
-        print("Running simulator ...\n")
+        logger.info(f"Finished sampling {num_samples} parameters.")
+        logger.info(f"Running simulator ...")
 
         outputs = self.simulator.run(samples)
 
+        ## check if outputs match in length and shorten them if necessary
+        min_length = min([len(out) for out in outputs])
+        max_length = max([len(out) for out in outputs])
+        if min_length != max_length:
+            logger.warning(
+                f"Outputs have different lengths. Shortening them to the minimum length of {min_length}."
+            )
+            outputs = [out[:min_length] for out in outputs]
+            self.timesteps_solver = self.timesteps_solver[:min_length]
+
+        ## convert from numpy array to pandas dataframe
         params = pd.DataFrame(samples, columns=self.param_names)
         outputs = pd.DataFrame(outputs, columns=self.timesteps_solver)
+
+        ## check if there are NaN outputs and remove them
+        nan_index = outputs.loc[pd.isna(outputs.iloc[:, 0]), :].index
+        if len(nan_index) > 0:
+            logger.warning(
+                f"Found NaN outputs for {len(nan_index)} samples. Removing them ..."
+            )
+            failed_simulations = params.loc[nan_index, :]
+            params.drop(nan_index, inplace=True)
+            outputs.drop(nan_index, inplace=True)
+            num_samples = num_samples - len(nan_index)
+            self.failed_simulations = failed_simulations
+            logger.info(
+                f"Removed {len(nan_index)} samples with NaN outputs. They can be accessed via the 'failed_simulations' attribute."
+            )
 
         self.params = params
         self.outputs = outputs
@@ -236,20 +278,22 @@ class time_dependent_sensitivity_analysis:
             - regression_model: 'OLS' or 'LARS' (default is 'OLS')
         """
         if self.outputs is None:
-            raise ValueError(
-                "No data available. Please run sample_params_and_run_simulator() first. \n"
+            error = ValueError(
+                "No data available. Please run sample_params_and_run_simulator() first."
             )
+            logger.error(error)
+            raise error
 
         if method == "KL":
             self._KL_analysis(self.params.to_numpy(), self.outputs.to_numpy(), **kwargs)
         elif method == "PC":
-            self._PC_analysis(
-                self.params.to_numpy(), self.outputs.to_numpy(), **kwargs
-            )
+            self._PC_analysis(self.params.to_numpy(), self.outputs.to_numpy(), **kwargs)
         else:
-            raise ValueError(
-                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos ('PC').\n"
+            error = ValueError(
+                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos ('PC')."
             )
+            logger.error(error)
+            raise error
 
         return self.sobol_indices[method]
 
@@ -317,8 +361,8 @@ class time_dependent_sensitivity_analysis:
             for i in range(len(sorted_eigenvalues))
         ]
         if self._r_Nkl[-1] < 0.90:
-            print(
-                "WARNING: The variance ratio is less than 90%. Consider increasing the truncation level. \n You can view the eigenvalue spectrum by calling the plot() method. \n"
+            logger.warning(
+                "The variance ratio is less than 90%. Consider increasing the truncation level.\nYou can view the eigenvalue spectrum by calling the plot() method.\n"
             )
 
         # Choose a truncation level N_kl and compute the discretized KL modes
@@ -340,7 +384,7 @@ class time_dependent_sensitivity_analysis:
         PCE_option = self._PCE_option
         joint_dist = self.distribution.dist
 
-        print("Generating PC expansion ...\n")
+        logger.info(f"Generating PC expansion of order {PCE_order} ...")
 
         cross_truncation = kwargs.get("cross_truncation", 1.0)
 
@@ -353,7 +397,7 @@ class time_dependent_sensitivity_analysis:
             cross_truncation=cross_truncation,
         )
 
-        print("Fitting surrogate models ...\n")
+        logger.info("Fitting surrogate models ...")
 
         num_cores = multiprocessing.cpu_count()
         if PCE_option == "regression":
@@ -365,9 +409,11 @@ class time_dependent_sensitivity_analysis:
                     fit_intercept=False, n_nonzero_coefs=len(expansion)
                 )
             else:
-                raise ValueError(
-                    f"Unknown regression model: {regression_model}. Please choose from 'OLS' or 'LARS'.\n"
+                error = ValueError(
+                    f"Unknown regression model: {regression_model}. Please choose from 'OLS' or 'LARS'."
                 )
+                logger.error(error)
+                raise error
             surrogate_models = Parallel(n_jobs=num_cores)(
                 delayed(cp.fit_regression)(
                     expansion,
@@ -380,9 +426,11 @@ class time_dependent_sensitivity_analysis:
             )
         elif PCE_option == "quadrature":
             if self._PCE_quad_weights is None:
-                raise ValueError(
-                    "No quadrature weights available. Please run sample_params_and_run_simulator() with the quadrature option first.\n"
+                error = ValueError(
+                    "No quadrature weights available. Please run sample_params_and_run_simulator() with the quadrature option first."
                 )
+                logger.error(error)
+                raise error
             surrogate_models = Parallel(n_jobs=num_cores)(
                 delayed(cp.fit_quadrature)(
                     expansion,
@@ -444,8 +492,8 @@ class time_dependent_sensitivity_analysis:
 
         if rel_error_variance > 0.1:
             denum = sum_coefficients
-            print(
-                f"WARNING: The relative error between the sum of eigenvalues and the sum of squared PC coefficients is larger than 10%: {rel_error_variance:.2f}. The sum of squared PC coefficients will be used as total variance to compute the Sobol' indices. \n"
+            logger.warning(
+                f"The relative error between the sum of eigenvalues and the sum of squared PC coefficients is larger than 10%: {rel_error_variance:.2f}. The sum of squared PC coefficients will be used as total variance to compute the Sobol' indices."
             )
         else:
             denum = sum_eigenvalues
@@ -483,7 +531,7 @@ class time_dependent_sensitivity_analysis:
         PCE_option = self._PCE_option
         joint_dist = self.distribution.dist
 
-        print("Generating PC expansion ...\n")
+        logger.info(f"Generating PC expansion of order {PCE_order} ...")
 
         cross_truncation = kwargs.get("cross_truncation", 1.0)
 
@@ -496,7 +544,7 @@ class time_dependent_sensitivity_analysis:
             cross_truncation=cross_truncation,
         )
 
-        print("Fitting surrogate models ...\n")
+        logger.info("Fitting surrogate models ...")
 
         num_cores = multiprocessing.cpu_count()
         if PCE_option == "regression":
@@ -508,9 +556,11 @@ class time_dependent_sensitivity_analysis:
                     fit_intercept=False, n_nonzero_coefs=len(expansion)
                 )
             else:
-                raise ValueError(
-                    f"Unknown regression model: {regression_model}. Please choose from 'OLS' or 'LARS'.\n"
+                error = ValueError(
+                    f"Unknown regression model: {regression_model}. Please choose from 'OLS' or 'LARS'."
                 )
+                logger.error(error)
+                raise error
             surrogate_models_pointwise = Parallel(n_jobs=num_cores)(
                 delayed(cp.fit_regression)(
                     expansion,
@@ -532,7 +582,6 @@ class time_dependent_sensitivity_analysis:
                 )
                 for m in tqdm(range(len(timesteps_quadrature)))
             )
-
         coeff_pointwise = [
             surrogate_models_pointwise[i][1] for i in range(len(timesteps_quadrature))
         ]
@@ -639,13 +688,17 @@ class time_dependent_sensitivity_analysis:
         """
 
         if self._PCE_coeffs == {}:
-            raise ValueError(
-                "No polynomial coefficients available. Please run compute_sobol_indices() first.\n"
+            error = ValueError(
+                "No polynomial coefficients available. Please run compute_sobol_indices() first."
             )
+            logger.error(error)
+            raise error
         elif self._num_timesteps_quadrature is None:
-            raise ValueError(
-                "No quadrature nodes available. Please run compute_sobol_indices() first.\n"
+            error = ValueError(
+                "No quadrature nodes available. Please run compute_sobol_indices() first."
             )
+            logger.error(error)
+            raise error
 
         timesteps_solver = self.timesteps_solver
         timesteps_quadrature = np.linspace(
@@ -764,9 +817,11 @@ class time_dependent_sensitivity_analysis:
             self._param_combinations_second_order = param_combinations
 
         else:
-            raise ValueError(
-                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PC').\n"
+            error = ValueError(
+                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PC')."
             )
+            logger.error(error)
+            raise error
 
         key = "second_" + method
         return (self.higher_order_sobol_indices[key], param_combinations)
@@ -781,13 +836,17 @@ class time_dependent_sensitivity_analysis:
         """
 
         if self._PCE_coeffs == {}:
-            raise ValueError(
-                "No polynomial coefficients available. Please run compute_sobol_indices() first.\n"
+            error = ValueError(
+                "No polynomial coefficients available. Please run compute_sobol_indices() first."
             )
+            logger.error(error)
+            raise error
         elif self._num_timesteps_quadrature is None:
-            raise ValueError(
-                "No quadrature nodes available. Please run compute_sobol_indices() first.\n"
+            error = ValueError(
+                "No quadrature nodes available. Please run compute_sobol_indices() first."
             )
+            logger.error(error)
+            raise error
 
         timesteps_solver = self.timesteps_solver
         timesteps_quadrature = np.linspace(
@@ -912,9 +971,11 @@ class time_dependent_sensitivity_analysis:
             self._param_combinations_third_order = param_combinations
 
         else:
-            raise ValueError(
-                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PC').\n"
+            error = ValueError(
+                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PC')."
             )
+            logger.error(error)
+            raise error
 
         key = "third_" + method
         return (self.higher_order_sobol_indices[key], param_combinations)
@@ -922,18 +983,22 @@ class time_dependent_sensitivity_analysis:
     def evaluate_surrogate_model(self, param: NDArray, method: str) -> NDArray:
         if method == "PC":
             if self._polynomial_pointwise["PC"] is None:
-                raise ValueError(
-                    "No PC surrogate model available. Please run the PC method first.\n"
+                error = ValueError(
+                    "No PC surrogate model available. Please run the PC method first."
                 )
+                logger.error(error)
+                raise error
             result = [
                 cp.call(self._polynomial_pointwise["PC"][m], param)
                 for m in range(self._num_timesteps_quadrature)
             ]
         elif method == "KL":
             if self._polynomial_pointwise["KL"] is None:
-                raise ValueError(
-                    "No KL surrogate model available. Please run the KL method first.\n"
+                error = ValueError(
+                    "No KL surrogate model available. Please run the KL method first."
                 )
+                logger.error(error)
+                raise error
             result = [
                 self._KL_mean[m]
                 + sum(
@@ -946,9 +1011,11 @@ class time_dependent_sensitivity_analysis:
                 for m in range(self._num_timesteps_quadrature)
             ]
         else:
-            raise ValueError(
-                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PC').\n"
+            error = ValueError(
+                f"Unknown method: {method}. Please choose from Karhunen-Loève ('KL') or Polynomial Chaos Expansion ('PC')."
             )
+            logger.error(error)
+            raise error
         return np.array(result)
 
     def plot(self, plot_option: str) -> None:
@@ -979,9 +1046,11 @@ class time_dependent_sensitivity_analysis:
         elif plot_option == "eigenvalue_spectrum":
             self._plot_eigenvalue_spectrum()
         else:
-            raise ValueError(
-                f"Unknown plot option: {plot_option}. Please choose from 'sobol_indices', 'time_dependent_sobol_indices', 'higher_order_sobol_indices', 'simulator_output', 'sampled_parameters', 'covariance_matrix', or 'eigenvalue_spectrum'.\n"
+            error = ValueError(
+                f"Unknown plot option: {plot_option}. Please choose from 'sobol_indices', 'time_dependent_sobol_indices', 'higher_order_sobol_indices', 'simulator_output', 'sampled_parameters', 'covariance_matrix', or 'eigenvalue_spectrum'."
             )
+            logger.error(error)
+            raise error
 
     def _plot_sobol_indices(self) -> None:
         """A method that plots the generalized Sobol' indices."""

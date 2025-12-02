@@ -344,6 +344,7 @@ class time_dependent_sensitivity_analysis:
                 np.log10(timesteps_solver[0]),
                 np.log10(timesteps_solver[-1]),
                 self._num_timesteps_quadrature,
+                base=10,
             )
         else:
             error = ValueError(
@@ -602,6 +603,7 @@ class time_dependent_sensitivity_analysis:
                 np.log10(timesteps_solver[0]),
                 np.log10(timesteps_solver[-1]),
                 self._num_timesteps_quadrature,
+                base=10,
             )
         else:
             error = ValueError(
@@ -831,6 +833,7 @@ class time_dependent_sensitivity_analysis:
                 np.log10(timesteps_solver[0]),
                 np.log10(timesteps_solver[-1]),
                 self._num_timesteps_quadrature,
+                base=10,
             )
         else:
             error = ValueError(
@@ -1021,6 +1024,7 @@ class time_dependent_sensitivity_analysis:
                 np.log10(timesteps_solver[0]),
                 np.log10(timesteps_solver[-1]),
                 self._num_timesteps_quadrature,
+                base=10,
             )
         else:
             error = ValueError(

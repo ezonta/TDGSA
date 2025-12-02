@@ -644,6 +644,18 @@ class time_dependent_sensitivity_analysis:
         td_sobol_indices_total = np.ones((len(timesteps_quadrature), self.num_params))
         td_sobol_indices_first = np.zeros((len(timesteps_quadrature), self.num_params))
 
+        h = np.array(
+            [
+                timesteps_quadrature[i + 1] - timesteps_quadrature[i]
+                for i in range(len(timesteps_quadrature) - 1)
+            ]
+        )
+        weights = np.ones(len(timesteps_quadrature))
+        for i in range(1, len(timesteps_quadrature) - 1):
+            weights[i] = (h[i - 1] + h[i]) / 2
+        weights[0] = 0.5 * h[0]
+        weights[-1] = 0.5 * h[-1]
+
         for m in range(len(timesteps_quadrature)):
             for i in range(self.num_params):
 
@@ -654,25 +666,19 @@ class time_dependent_sensitivity_analysis:
 
                 else:
 
-                    h = np.array(
-                        [
-                            timesteps_quadrature[i + 1] - timesteps_quadrature[i]
-                            for i in range(len(timesteps_quadrature) - 1)
-                        ]
+                    denum = np.dot(
+                        np.asfarray(total_variance_over_time[:m]), weights[:m]
                     )
-                    weights = np.ones(len(timesteps_quadrature))
-                    for i in range(1, len(timesteps_quadrature) - 1):
-                        weights[i] = (h[i - 1] + h[i]) / 2
-                    weights[0] = 0.5 * h[0]
-                    weights[-1] = 0.5 * h[-1]
-
-                    denum = np.dot(np.asfarray(total_variance_over_time[:m]), weights)
                     td_sobol_indices_total[m, i] = (
-                        np.dot(np.asfarray(variance_over_time_total[:m, i]), weights)
+                        np.dot(
+                            np.asfarray(variance_over_time_total[:m, i]), weights[:m]
+                        )
                         / denum
                     )
                     td_sobol_indices_first[m, i] = (
-                        np.dot(np.asfarray(variance_over_time_first[:m, i]), weights)
+                        np.dot(
+                            np.asfarray(variance_over_time_first[:m, i]), weights[:m]
+                        )
                         / denum
                     )
         sobol_indices = np.zeros((self.num_params, 2))
@@ -767,6 +773,18 @@ class time_dependent_sensitivity_analysis:
                 (len(timesteps_quadrature), len(param_combinations))
             )
 
+            h = np.array(
+                [
+                    timesteps_quadrature[i + 1] - timesteps_quadrature[i]
+                    for i in range(len(timesteps_quadrature) - 1)
+                ]
+            )
+            weights = np.ones(len(timesteps_quadrature))
+            for i in range(1, len(timesteps_quadrature) - 1):
+                weights[i] = (h[i - 1] + h[i]) / 2
+            weights[0] = 0.5 * h[0]
+            weights[-1] = 0.5 * h[-1]
+
             for m in range(len(timesteps_quadrature)):
                 for i in range(len(param_combinations)):
 
@@ -776,17 +794,13 @@ class time_dependent_sensitivity_analysis:
 
                     else:
 
-                        h = timesteps_quadrature[1] - timesteps_quadrature[0]
-                        weights = np.ones(m) * h
-                        weights[0] = 0.5 * h
-                        weights[-1] = 0.5 * h
-
                         denum = np.dot(
-                            np.asfarray(total_variance_over_time[:m]), weights
+                            np.asfarray(total_variance_over_time[:m]), weights[:m]
                         )
                         td_sobol_indices_second[m, i] = (
                             np.dot(
-                                np.asfarray(variance_over_time_second[:m, i]), weights
+                                np.asfarray(variance_over_time_second[:m, i]),
+                                weights[:m],
                             )
                             / denum
                         )
@@ -921,6 +935,18 @@ class time_dependent_sensitivity_analysis:
                 (len(timesteps_quadrature), len(param_combinations))
             )
 
+            h = np.array(
+                [
+                    timesteps_quadrature[i + 1] - timesteps_quadrature[i]
+                    for i in range(len(timesteps_quadrature) - 1)
+                ]
+            )
+            weights = np.ones(len(timesteps_quadrature))
+            for i in range(1, len(timesteps_quadrature) - 1):
+                weights[i] = (h[i - 1] + h[i]) / 2
+            weights[0] = 0.5 * h[0]
+            weights[-1] = 0.5 * h[-1]
+
             for m in range(len(timesteps_quadrature)):
                 for i in range(len(param_combinations)):
 
@@ -930,17 +956,13 @@ class time_dependent_sensitivity_analysis:
 
                     else:
 
-                        h = timesteps_quadrature[1] - timesteps_quadrature[0]
-                        weights = np.ones(m) * h
-                        weights[0] = 0.5 * h
-                        weights[-1] = 0.5 * h
-
                         denum = np.dot(
-                            np.asfarray(total_variance_over_time[:m]), weights
+                            np.asfarray(total_variance_over_time[:m]), weights[:m]
                         )
                         td_sobol_indices_third[m, i] = (
                             np.dot(
-                                np.asfarray(variance_over_time_third[:m, i]), weights
+                                np.asfarray(variance_over_time_third[:m, i]),
+                                weights[:m],
                             )
                             / denum
                         )

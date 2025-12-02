@@ -35,6 +35,7 @@ class time_dependent_sensitivity_analysis:
         higher_order_sobol_indices (Dict[str, pd.DataFrame]): The computed higher-order Sobol indices.
         td_higher_order_sobol_indices (Dict[str, pd.DataFrame]): The computed time-dependent higher-order Sobol indices.
         _num_timesteps_quadrature (Optional[int]): The number of quadrature nodes in time.
+        _timestep_quadrature_spacing (Optional[str]): The spacing of quadrature nodes.
         _PC_option (Optional[str]): The option for Polynomial Chaos (PC) expansion analysis.
         _PC_quad_weights (Optional[NDArray]): The quadrature weights for PC analysis.
         _KL_truncation_level (Optional[int]): The truncation level for Karhunen-Loève (KL) expansion.
@@ -83,6 +84,7 @@ class time_dependent_sensitivity_analysis:
 
     # private
     _num_timesteps_quadrature: Optional[int]
+    _timesteps_quadrature_spacing: Optional[str]
 
     _PCE_option: Optional[str]
     _PCE_quad_weights: Optional[NDArray]
@@ -138,6 +140,7 @@ class time_dependent_sensitivity_analysis:
         self.td_higher_order_sobol_indices = {}
 
         self._num_timesteps_quadrature = None
+        self._timesteps_quadrature_spacing = None
 
         self._KL_truncation_level = None
         self._covariance_matrix = None
@@ -272,6 +275,7 @@ class time_dependent_sensitivity_analysis:
 
         kwargs:
             - num_timesteps_quadrature: number of quadrature nodes in time (default is 100)
+            - timesteps_quadrature_spacing: spacing of quadrature nodes in time, either 'linear', 'log' or 'log10' (default is 'linear')
             - KL_truncation_level: truncation level for the Karhunen-Loève expansion (default is 8)
             - PCE_order: order of the Polynomial Chaos Expansion (default is 4)
             - cross_truncation: cross truncation parameter for the PC expansion (default is 1.0)
@@ -307,9 +311,47 @@ class time_dependent_sensitivity_analysis:
         output_centered = np.array([out - mean for out in output])
         timesteps_solver = self.timesteps_solver
         self._num_timesteps_quadrature = kwargs.get("num_timesteps_quadrature", 100)
-        timesteps_quadrature = np.linspace(
-            timesteps_solver[0], timesteps_solver[-1], self._num_timesteps_quadrature
+        self._timesteps_quadrature_spacing = kwargs.get(
+            "timesteps_quadrature_spacing", "linear"
         )
+
+        if self._timesteps_quadrature_spacing == "linear":
+            timesteps_quadrature = np.linspace(
+                timesteps_solver[0],
+                timesteps_solver[-1],
+                self._num_timesteps_quadrature,
+            )
+        elif self._timesteps_quadrature_spacing == "log":
+            if not all(timesteps_solver > 0):
+                error = ValueError(
+                    "The time steps of the solver must be positive and > 0 for log spacing."
+                )
+                logger.error(error)
+                raise error
+            timesteps_quadrature = np.logspace(
+                np.log(timesteps_solver[0]),
+                np.log(timesteps_solver[-1]),
+                self._num_timesteps_quadrature,
+            )
+        elif self._timesteps_quadrature_spacing == "log10":
+            if not all(timesteps_solver > 0):
+                error = ValueError(
+                    "The time steps of the solver must be positive and > 0 for log10 spacing."
+                )
+                logger.error(error)
+                raise error
+            timesteps_quadrature = np.logspace(
+                np.log10(timesteps_solver[0]),
+                np.log10(timesteps_solver[-1]),
+                self._num_timesteps_quadrature,
+            )
+        else:
+            error = ValueError(
+                f"Unknown timesteps_quadrature_spacing: {self._timesteps_quadrature_spacing}. Please choose from 'linear', 'log', or 'log10'."
+            )
+            logger.error(error)
+            raise error
+
         centered_outputs_quadrature = np.array(
             [
                 np.interp(timesteps_quadrature, timesteps_solver, output)
@@ -527,9 +569,47 @@ class time_dependent_sensitivity_analysis:
         # Construct pointwise-in-time PCEs
         timesteps_solver = self.timesteps_solver
         self._num_timesteps_quadrature = kwargs.get("num_timesteps_quadrature", 100)
-        timesteps_quadrature = np.linspace(
-            timesteps_solver[0], timesteps_solver[-1], self._num_timesteps_quadrature
+        self._timesteps_quadrature_spacing = kwargs.get(
+            "timesteps_quadrature_spacing", "linear"
         )
+
+        if self._timesteps_quadrature_spacing == "linear":
+            timesteps_quadrature = np.linspace(
+                timesteps_solver[0],
+                timesteps_solver[-1],
+                self._num_timesteps_quadrature,
+            )
+        elif self._timesteps_quadrature_spacing == "log":
+            if not all(timesteps_solver > 0):
+                error = ValueError(
+                    "The time steps of the solver must be positive and > 0 for log spacing."
+                )
+                logger.error(error)
+                raise error
+            timesteps_quadrature = np.logspace(
+                np.log(timesteps_solver[0]),
+                np.log(timesteps_solver[-1]),
+                self._num_timesteps_quadrature,
+            )
+        elif self._timesteps_quadrature_spacing == "log10":
+            if not all(timesteps_solver > 0):
+                error = ValueError(
+                    "The time steps of the solver must be positive and > 0 for log10 spacing."
+                )
+                logger.error(error)
+                raise error
+            timesteps_quadrature = np.logspace(
+                np.log10(timesteps_solver[0]),
+                np.log10(timesteps_solver[-1]),
+                self._num_timesteps_quadrature,
+            )
+        else:
+            error = ValueError(
+                f"Unknown timesteps_quadrature_spacing: {self._timesteps_quadrature_spacing}. Please choose from 'linear', 'log', or 'log10'."
+            )
+            logger.error(error)
+            raise error
+
         outputs_quadrature = np.array(
             [np.interp(timesteps_quadrature, timesteps_solver, out) for out in output]
         )
@@ -721,9 +801,43 @@ class time_dependent_sensitivity_analysis:
             raise error
 
         timesteps_solver = self.timesteps_solver
-        timesteps_quadrature = np.linspace(
-            timesteps_solver[0], timesteps_solver[-1], self._num_timesteps_quadrature
-        )
+
+        if self._timesteps_quadrature_spacing == "linear":
+            timesteps_quadrature = np.linspace(
+                timesteps_solver[0],
+                timesteps_solver[-1],
+                self._num_timesteps_quadrature,
+            )
+        elif self._timesteps_quadrature_spacing == "log":
+            if not all(timesteps_solver > 0):
+                error = ValueError(
+                    "The time steps of the solver must be positive and > 0 for log spacing."
+                )
+                logger.error(error)
+                raise error
+            timesteps_quadrature = np.logspace(
+                np.log(timesteps_solver[0]),
+                np.log(timesteps_solver[-1]),
+                self._num_timesteps_quadrature,
+            )
+        elif self._timesteps_quadrature_spacing == "log10":
+            if not all(timesteps_solver > 0):
+                error = ValueError(
+                    "The time steps of the solver must be positive and > 0 for log10 spacing."
+                )
+                logger.error(error)
+                raise error
+            timesteps_quadrature = np.logspace(
+                np.log10(timesteps_solver[0]),
+                np.log10(timesteps_solver[-1]),
+                self._num_timesteps_quadrature,
+            )
+        else:
+            error = ValueError(
+                f"Unknown timesteps_quadrature_spacing: {self._timesteps_quadrature_spacing}. Please choose from 'linear', 'log', or 'log10'."
+            )
+            logger.error(error)
+            raise error
 
         masks_second = []
         param_combinations = []
@@ -877,9 +991,43 @@ class time_dependent_sensitivity_analysis:
             raise error
 
         timesteps_solver = self.timesteps_solver
-        timesteps_quadrature = np.linspace(
-            timesteps_solver[0], timesteps_solver[-1], self._num_timesteps_quadrature
-        )
+
+        if self._timesteps_quadrature_spacing == "linear":
+            timesteps_quadrature = np.linspace(
+                timesteps_solver[0],
+                timesteps_solver[-1],
+                self._num_timesteps_quadrature,
+            )
+        elif self._timesteps_quadrature_spacing == "log":
+            if not all(timesteps_solver > 0):
+                error = ValueError(
+                    "The time steps of the solver must be positive and > 0 for log spacing."
+                )
+                logger.error(error)
+                raise error
+            timesteps_quadrature = np.logspace(
+                np.log(timesteps_solver[0]),
+                np.log(timesteps_solver[-1]),
+                self._num_timesteps_quadrature,
+            )
+        elif self._timesteps_quadrature_spacing == "log10":
+            if not all(timesteps_solver > 0):
+                error = ValueError(
+                    "The time steps of the solver must be positive and > 0 for log10 spacing."
+                )
+                logger.error(error)
+                raise error
+            timesteps_quadrature = np.logspace(
+                np.log10(timesteps_solver[0]),
+                np.log10(timesteps_solver[-1]),
+                self._num_timesteps_quadrature,
+            )
+        else:
+            error = ValueError(
+                f"Unknown timesteps_quadrature_spacing: {self._timesteps_quadrature_spacing}. Please choose from 'linear', 'log', or 'log10'."
+            )
+            logger.error(error)
+            raise error
 
         masks_third = []
         param_combinations = []

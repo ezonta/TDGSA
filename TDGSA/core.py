@@ -333,10 +333,17 @@ class time_dependent_sensitivity_analysis:
         self._covariance_matrix = covariance_matrix
 
         # Let W = diag(w_1, ..., w_n) and solve the eigenvalue problem
-        h = timesteps_quadrature[1] - timesteps_quadrature[0]
-        weights = np.ones(len(timesteps_quadrature)) * h
-        weights[0] = 0.5 * h
-        weights[-1] = 0.5 * h
+        h = np.array(
+            [
+                timesteps_quadrature[i + 1] - timesteps_quadrature[i]
+                for i in range(len(timesteps_quadrature) - 1)
+            ]
+        )
+        weights = np.ones(len(timesteps_quadrature))
+        for i in range(1, len(timesteps_quadrature) - 1):
+            weights[i] = (h[i - 1] + h[i]) / 2
+        weights[0] = 0.5 * h[0]
+        weights[-1] = 0.5 * h[-1]
 
         W = np.diag(weights)
 
@@ -647,10 +654,17 @@ class time_dependent_sensitivity_analysis:
 
                 else:
 
-                    h = timesteps_quadrature[1] - timesteps_quadrature[0]
-                    weights = np.ones(m) * h
-                    weights[0] = 0.5 * h
-                    weights[-1] = 0.5 * h
+                    h = np.array(
+                        [
+                            timesteps_quadrature[i + 1] - timesteps_quadrature[i]
+                            for i in range(len(timesteps_quadrature) - 1)
+                        ]
+                    )
+                    weights = np.ones(len(timesteps_quadrature))
+                    for i in range(1, len(timesteps_quadrature) - 1):
+                        weights[i] = (h[i - 1] + h[i]) / 2
+                    weights[0] = 0.5 * h[0]
+                    weights[-1] = 0.5 * h[-1]
 
                     denum = np.dot(np.asfarray(total_variance_over_time[:m]), weights)
                     td_sobol_indices_total[m, i] = (

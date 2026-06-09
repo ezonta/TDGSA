@@ -6,7 +6,7 @@ This project aims to provide an easy to use implementation of time-dependent glo
 
 [1] Alexanderian, A.; Gremaud, P. A.; Smith, R. C. Variance-Based Sensitivity Analysis for Time-Dependent Processes. Reliability Engineering & System Safety 2020, 196, 106722. https://doi.org/10.1016/j.ress.2019.106722.
 
-[2] https://arxiv.org/abs/2502.17275
+[2] [Zonta et al. J. Energy Storage 2026](https://www.sciencedirect.com/science/article/pii/S2352152X26014155)
 
 
 ## Installation
